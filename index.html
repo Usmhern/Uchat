@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SheetChat Realtime</title>
+    <title>UChat</title>
     <style>
         :root {
             --primary: #0084ff;
@@ -131,7 +131,7 @@
     <div class="chat-container">
         <header>
             <div class="brand">
-                <h1>SheetChat</h1>
+                <h1>UChat</h1>
             </div>
             <div id="status-container">
                 <div id="status-dot"></div>
@@ -175,7 +175,7 @@
             setTimeout(() => {
                 toast.style.opacity = '0';
                 setTimeout(() => toast.remove(), 500);
-            }, 3000);
+            }, 1000);
         }
 
         // Fetch messages from Google Sheets
@@ -253,14 +253,14 @@
                 });
 
                 // Refresh messages after a short delay to allow Google to process
-                setTimeout(fetchMessages, 500);
+                setTimeout(fetchMessages, 100);
             } catch (err) {
                 alert("Failed to send message. Check your connection.");
             }
         });
 
         // Check for new messages every 3 seconds
-        setInterval(fetchMessages, 3000);
+        setInterval(fetchMessages, 1000);
 
         // Initial fetch
         fetchMessages();
