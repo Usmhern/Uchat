@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SheetChat Realtime</title>
+    <style>
+        :root {
+            --primary: #0084ff;
+            --bg: #f0f2f5;
+            --text: #1c1e21;
+            --received-bg: #e4e6eb;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--bg);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        .chat-container {
+            width: 100%;
+            max-width: 450px;
+            height: 90vh;
+            background: white;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        header {
+            background: var(--primary);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .brand h1 { font-size: 1.2rem; margin: 0; }
+        
+        #status-container { display: flex; align-items: center; font-size: 0.8rem; opacity: 0.9; }
+        #status-dot { width: 8px; height: 8px; border-radius: 50%; background: #ff4b4b; margin-right: 5px; transition: 0.3s; }
+        .online #status-dot { background: #42b72a; }
+
+        .chat-box {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background: #fff;
+        }
+
+        .msg {
+            max-width: 80%;
+            padding: 10px 14px;
+            border-radius: 18px;
+            font-size: 0.95rem;
+            line-height: 1.4;
+            position: relative;
+            animation: pop 0.2s ease-out;
+            word-wrap: break-word;
+        }
+
+        .msg.received { background: var(--received-bg); align-self: flex-start; border-bottom-left-radius: 4px; color: black; }
+        .msg.sent { background: var(--primary); color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
+
+        .msg-info {
+            display: block;
+            font-size: 0.7rem;
+            margin-bottom: 3px;
+            font-weight: bold;
+            opacity: 0.7;
+        }
+
+        .input-area { padding: 15px; border-top: 1px solid #eee; background: #fff; }
+        .input-row { display: flex; gap: 8px; margin-top: 8px; }
+        
+        input { 
+            flex: 1; 
+            padding: 12px; 
+            border: 1px solid #ddd; 
+            border-radius: 8px; 
+            outline: none; 
+            transition: border 0.2s;
+        }
+        input:focus { border-color: var(--primary); }
+
+        #username { background: #fafafa; font-weight: bold; }
+
+        button { 
+            background: var(--primary); 
+            color: white; 
+            border: none; 
+            padding: 10px 20px; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-weight: bold; 
+            transition: opacity 0.2s;
+        }
+        button:hover { opacity: 0.9; }
+        button:active { transform: scale(0.98); }
+
+        /* Notifications */
+        #notification-container { position: fixed; top: 20px; right: 20px; z-index: 9999; pointer-events: none; }
+        .toast { 
+            background: #333; 
+            color: white; 
+            padding: 12px 18px; 
+            border-radius: 8px; 
+            margin-bottom: 8px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            animation: slideIn 0.3s ease-out; 
+        }
+
+        @keyframes pop { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    </style>
+</head>
+<body class="connecting">
+
+    <div class="chat-container">
+        <header>
+            <div class="brand">
+                <h1>SheetChat</h1>
+            </div>
+            <div id="status-container">
+                <div id="status-dot"></div>
+                <span id="status-text">Connecting...</span>
+            </div>
+        </header>
+
+        <div id="chat-box" class="chat-box">
+            </div>
+
+        <form id="message-form" class="input-area">
+            <input type="text" id="username" placeholder="Enter Username" required maxlength="15">
+            <div class="input-row">
+                <input type="text" id="message-input" placeholder="Type a message..." required autocomplete="off">
+                <button type="submit" id="send-btn">Send</button>
+            </div>
+        </form>
+    </div>
+
+    <div id="notification-container"></div>
+
+    <script>
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwiUJSNMlDtSXF8LscIqMTTQBNVWhoNQ2Fzbfs2LX0EARD2inBRS1fsSbwiLXEozVBhzA/exec';
+        const chatBox = document.getElementById('chat-box');
+        const messageForm = document.getElementById('message-form');
+        const statusText = document.getElementById('status-text');
+        const statusDot = document.body;
+        
+        let lastMessageCount = 0;
+        let isFirstLoad = true;
+
+        // Show a popup notification
+        function showNotification(name, message) {
+            const container = document.getElementById('notification-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.innerText = `${name}: ${message.substring(0, 30)}${message.length > 30 ? '...' : ''}`;
+            container.appendChild(toast);
+            
+            // Auto-remove notification after 3 seconds
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 500);
+            }, 3000);
+        }
+
+        // Fetch messages from Google Sheets
+        async function fetchMessages() {
+            try {
+                const response = await fetch(SCRIPT_URL);
+                const messages = await response.json();
+                
+                if (messages.length > lastMessageCount) {
+                    const myName = document.getElementById('username').value;
+                    const latestMessage = messages[messages.length - 1];
+
+                    // Notify if someone else sent a message
+                    if (!isFirstLoad && latestMessage[0] !== myName) {
+                        showNotification(latestMessage[0], latestMessage[1]);
+                    }
+
+                    renderChat(messages);
+                    lastMessageCount = messages.length;
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                }
+                
+                statusDot.classList.add('online');
+                statusText.innerText = "Live";
+                isFirstLoad = false;
+            } catch (e) {
+                console.error("Fetch error:", e);
+                statusDot.classList.remove('online');
+                statusText.innerText = "Reconnecting...";
+            }
+        }
+
+        // Generate the HTML for the messages
+        function renderChat(data) {
+            const myName = document.getElementById('username').value;
+            chatBox.innerHTML = data.map(row => {
+                const name = row[0];
+                const msg = row[1];
+                const isMe = (name === myName && myName !== "");
+                
+                return `
+                    <div class="msg ${isMe ? 'sent' : 'received'}">
+                        <span class="msg-info">${name}</span>
+                        <div class="text">${msg}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Handle sending messages
+        messageForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const nameInput = document.getElementById('username');
+            const messageInput = document.getElementById('message-input');
+            
+            const name = nameInput.value;
+            const message = messageInput.value;
+
+            if (!message || !name) return;
+
+            // Lock username after first message for consistency
+            nameInput.readOnly = true;
+            nameInput.style.opacity = "0.7";
+
+            // Clear input immediately for better UX
+            messageInput.value = '';
+
+            try {
+                // Post to Apps Script
+                await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, message })
+                });
+
+                // Refresh messages after a short delay to allow Google to process
+                setTimeout(fetchMessages, 500);
+            } catch (err) {
+                alert("Failed to send message. Check your connection.");
+            }
+        });
+
+        // Check for new messages every 3 seconds
+        setInterval(fetchMessages, 3000);
+
+        // Initial fetch
+        fetchMessages();
+    </script>
+</body>
+</html>
