@@ -219,28 +219,32 @@ const now = Date.now();
 
 users = users.map(u=>{
 if(Array.isArray(u)) return u;
-return [u,null];
+return [u, ""];
 });
 
 document.getElementById("users").innerHTML =
 users.map(u=>{
 
 const name = u[0];
-const lastSeen = u[1];
+const lastSeenRaw = u[1];
 
-let online = false;
-if(lastSeen){
-online = (now - new Date(lastSeen).getTime()) < 8000;
+let isOnline = false;
+
+if(lastSeenRaw){
+const lastSeen = new Date(lastSeenRaw).getTime();
+const diff = now - lastSeen;
+
+// 🔥 IMPORTANT: increase tolerance for real Google Sheets delay
+isOnline = diff < 15000; // 15 seconds
 }
 
 return `
 <div class="user" onclick="openChat('${name}')">
 <span>• ${name}</span>
-<span style="color:${online?'#25D366':'#999'}">●</span>
+<span style="color:${isOnline ? '#25D366' : '#999'}">●</span>
 </div>`;
 }).join('');
 }
-
 /* OPEN CHAT */
 function openChat(u){
 active = u;
@@ -364,7 +368,7 @@ div.className="popup";
 div.innerHTML=`📩 ${sender}: ${msg}`;
 document.body.appendChild(div);
 
-setTimeout(()=>div.remove(),3000);
+setTimeout(()=>div.remove(),10000);
 
 try{
 const audio=new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
@@ -416,10 +420,10 @@ type:"presence",
 name:user
 })
 });
-},3000);
+},1000);
 
 /* LOOP */
-setInterval(load,3000);
+setInterval(load,1000);
 load();
 </script>
 
