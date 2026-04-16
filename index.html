@@ -217,12 +217,16 @@ let lastCount = 0;
 
 /* TIME */
 function getTime(){
-const d=new Date();
-let h=d.getHours();
-let m=d.getMinutes();
-const ampm=h>=12?"am":"pm";
-h=h%12||12;
-m=m<10?"0"+m:m;
+const d = new Date();
+
+let h = d.getHours();
+let m = d.getMinutes();
+
+const ampm = h >= 12 ? "pm" : "am";
+
+h = h % 12 || 12;
+m = m < 10 ? "0" + m : m;
+
 return `${h}:${m}${ampm}`;
 }
 
