@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>UChat</title>
+<title>UChat Fixed</title>
 
 <style>
 :root{
@@ -65,23 +65,15 @@ justify-content:space-between;
 align-items:center;
 }
 
-/* DOT */
 .status-dot{
 width:10px;
 height:10px;
 border-radius:50%;
 background:red;
-display:inline-block;
 }
 
 .status-dot.online{
 background:#25D366;
-animation:blink 1s infinite;
-box-shadow:0 0 8px #25D366;
-}
-
-@keyframes blink{
-50%{opacity:0.3;}
 }
 
 /* CHAT BOX */
@@ -98,7 +90,7 @@ background:#fafafa;
 .msg{
 max-width:75%;
 padding:10px;
-border-radius:15px 0 15px 0;
+border-radius:15px;
 font-size:14px;
 word-break:break-word;
 }
@@ -140,28 +132,6 @@ background:#036;
 color:#fff;
 }
 
-/* USERS HEADER */
-.user-header{
-display:flex;
-justify-content:space-between;
-align-items:center;
-margin-bottom:6px;
-}
-
-.toggle-btn{
-width:28px;
-height:28px;
-border-radius:50%;
-background:#036;
-color:#fff;
-display:flex;
-align-items:center;
-justify-content:center;
-cursor:pointer;
-font-size:18px;
-user-select:none;
-}
-
 /* POPUP */
 .popup{
 position:fixed;
@@ -174,18 +144,6 @@ padding:10px 15px;
 border-radius:10px;
 font-size:13px;
 }
-
-/* VOICE */
-.voice-btn{
-background:#ddd;
-color:#000;
-}
-
-.voice-recording{
-background:red !important;
-color:#fff !important;
-animation:blink 0.8s infinite;
-}
 </style>
 </head>
 
@@ -195,14 +153,8 @@ animation:blink 0.8s infinite;
 
 <!-- USERS -->
 <div class="sidebar">
-
-<div class="user-header">
-<h4 style="color:#0bf">USERS</h4>
-<div class="toggle-btn" onclick="toggleUsers()" id="toggleBtn">+</div>
-</div>
-
+<h4 style="color:#0bf;margin-bottom:10px;">USERS</h4>
 <div id="users"></div>
-
 </div>
 
 <!-- CHAT -->
@@ -210,20 +162,18 @@ animation:blink 0.8s infinite;
 
 <header>
 <h3 id="chatTitle">UChat</h3>
-<span id="globalStatus" class="status-dot"></span>
+<span id="status" class="status-dot"></span>
 </header>
 
 <div id="chatBox" class="chat-box"></div>
 
 <form id="form" class="input-area">
 <input id="msg" placeholder="Message..." required>
-<button type="button" class="voice-btn">🎤</button>
 <button type="submit">➤</button>
 </form>
 
 </div>
 </div>
-
 
 <script>
 const URL="https://script.google.com/macros/s/AKfycbwnsg8sCprc57e1QwLuW9IqYkWcnMrPT5pmuisE1OCEJ9jFwYNv-dLikIoiDwt83MXKTg/exec";
@@ -232,97 +182,83 @@ let user="";
 let active=null;
 let messages=[];
 let users=[];
-let showAll=true;
 let lastCount=0;
 
-/* INPUT */
-const msgInput = document.getElementById("msg");
+const msgInput=document.getElementById("msg");
 
-/* LOGIN + REGISTER USER */
+/* LOGIN + REGISTER */
 window.onload=async()=>{
 user = prompt("Enter username:");
 if(!user) user="User"+Math.floor(Math.random()*9999);
 
 await registerUser();
+load();
+setInterval(load, 2000);
 };
 
-/* REGISTER USER TO BACKEND */
+/* REGISTER USER */
 async function registerUser(){
 try{
 await fetch(URL,{
 method:"POST",
+headers:{"Content-Type":"application/json"},
 body:JSON.stringify({
 type:"register",
 name:user,
 time:new Date().toISOString()
 })
 });
-}catch(e){
-console.log("Register failed",e);
+}catch(err){
+console.log("Register error:",err);
 }
 }
 
-/* TOGGLE USERS */
-function toggleUsers(){
-showAll=!showAll;
-document.getElementById("toggleBtn").innerText=showAll?"–":"+";
-}
-
-/* MAIN LOOP */
+/* LOAD DATA */
 async function load(){
 try{
-const res=await fetch(URL+"?t="+Date.now());
-const data=await res.json();
+const res = await fetch(URL + "?t=" + Date.now());
+const data = await res.json();
 
-messages = Array.isArray(data.messages) ? data.messages : [];
-users = Array.isArray(data.users) ? data.users : [];
+messages = data.messages || [];
+users = data.users || [];
 
 renderUsers();
 renderMessages();
-handleNotify();
+notify();
 
-document.getElementById("globalStatus").classList.add("online");
+document.getElementById("status").classList.add("online");
 
-}catch(e){
-console.log(e);
-document.getElementById("globalStatus").classList.remove("online");
+}catch(err){
+console.log("Load error:",err);
+document.getElementById("status").classList.remove("online");
 }
 }
 
 /* USERS */
 function renderUsers(){
-const now=Date.now();
 let html="";
 
 users.forEach(u=>{
-let name="",lastSeen="";
+let name="",time="";
 
 if(Array.isArray(u)){
 name=u[0];
-lastSeen=u[1];
-}else if(typeof u==="string"){
+time=u[1];
+}else{
 name=u;
 }
 
 if(!name) return;
 
-let online=false;
-const t=new Date(lastSeen).getTime();
-if(!isNaN(t)){
-online=(now-t)<15000;
-}
-
-if(!showAll && !online) return;
-
 html+=`
 <div class="user" onclick="openChat('${name}')">
-<span>• ${name}</span>
-<span class="status-dot ${online?'online':''}"></span>
+<span>${name}</span>
+<span class="status-dot online"></span>
 </div>`;
 });
 
 document.getElementById("users").innerHTML=
-html || "<div style='padding:10px;color:#aaa'>No users</div>";
+html || "<p style='color:#aaa'>No users</p>";
 }
 
 /* OPEN CHAT */
@@ -333,7 +269,6 @@ document.getElementById("chatTitle").innerText=u;
 
 /* MESSAGES */
 function renderMessages(){
-
 const box=document.getElementById("chatBox");
 
 if(!active){
@@ -341,36 +276,36 @@ box.innerHTML="<center style='padding:20px'>Select user</center>";
 return;
 }
 
-const chat=messages.filter(m=>
-(m[0]==user&&m[1]==active)||
-(m[0]==active&&m[1]==user)
+const chat = messages.filter(m=>
+(m[0]==user && m[1]==active) ||
+(m[0]==active && m[1]==user)
 );
 
-box.innerHTML=chat.map(m=>{
-const mine=m[0]===user;
-const seen=m[4];
+box.innerHTML = chat.map(m=>{
+const mine = m[0] === user;
 
 return `
 <div class="msg ${mine?'sent':'received'}">
 <div>${m[2]}</div>
 <div class="time">
-${new Date(m[3]).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
-${mine?(seen?'✓✓':'✓'):''}
+${new Date(m[3]).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}
 </div>
 </div>`;
-}).join('');
+}).join("");
 
-box.scrollTop=box.scrollHeight;
+box.scrollTop = box.scrollHeight;
 }
 
 /* SEND MESSAGE */
-document.getElementById("form").onsubmit=async(e)=>{
+document.getElementById("form").onsubmit = async(e)=>{
 e.preventDefault();
 
-if(!active) return alert("Select user");
+if(!active) return alert("Select a user");
 
+try{
 await fetch(URL,{
 method:"POST",
+headers:{"Content-Type":"application/json"},
 body:JSON.stringify({
 type:"message",
 sender:user,
@@ -381,76 +316,34 @@ time:new Date().toISOString()
 });
 
 msgInput.value="";
-};
 
-/* VOICE */
-let recognition;
-let recording=false;
-
-document.querySelector(".voice-btn").onclick=()=>{
-
-if(!('webkitSpeechRecognition'in window||'SpeechRecognition'in window)){
-alert("Not supported");
-return;
-}
-
-const btn=document.querySelector(".voice-btn");
-
-if(!recording){
-
-btn.classList.add("voice-recording");
-btn.innerHTML="⏹️";
-
-recognition=new (window.SpeechRecognition||window.webkitSpeechRecognition)();
-recognition.lang="en-US";
-recognition.start();
-
-recording=true;
-
-recognition.onresult=(e)=>{
-msgInput.value=e.results[0][0].transcript;
-};
-
-}else{
-
-btn.classList.remove("voice-recording");
-btn.innerHTML="🎤";
-
-recognition.stop();
-recording=false;
+}catch(err){
+alert("Message failed");
+console.log(err);
 }
 };
 
-/* NOTIFICATIONS */
-function handleNotify(){
-if(messages.length>lastCount){
+/* NOTIFY */
+function notify(){
+if(messages.length > lastCount){
+const last = messages[messages.length-1];
 
-const last=messages[messages.length-1];
-
-if(last && last[1]==user){
-showPopup(last[0],last[2]);
+if(last && last[1] === user){
+popup(last[0], last[2]);
 }
 
-lastCount=messages.length;
+lastCount = messages.length;
 }
 }
 
-function showPopup(sender,msg){
+function popup(sender,msg){
 const div=document.createElement("div");
 div.className="popup";
 div.innerText=`📩 ${sender}: ${msg}`;
 document.body.appendChild(div);
 
-setTimeout(()=>div.remove(),2500);
-
-try{
-new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play();
-}catch(e){}
+setTimeout(()=>div.remove(),3000);
 }
-
-/* LOOP */
-setInterval(load,1500);
-load();
 </script>
 
 </body>
