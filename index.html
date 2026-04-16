@@ -30,7 +30,7 @@ background:black;
 display:flex;
 }
 
-/* USERS */
+/* SIDEBAR */
 .sidebar{
 width:120px;
 background:#0f172a;
@@ -65,7 +65,7 @@ justify-content:space-between;
 align-items:center;
 }
 
-/* HEADER DOT */
+/* STATUS DOT */
 .status-dot{
 width:10px;
 height:10px;
@@ -83,7 +83,7 @@ box-shadow:0 0 8px #25D366;
 50%{opacity:0.3;}
 }
 
-/* CHAT BOX */
+/* CHAT */
 .chat-box{
 flex:1;
 overflow-y:auto;
@@ -171,6 +171,19 @@ font-size:12px;
 color:#555;
 padding:5px 10px;
 }
+
+/* OFFLINE TOGGLE */
+.toggle-btn{
+margin-top:5px;
+width:100%;
+padding:5px;
+border:none;
+border-radius:6px;
+background:#036;
+color:#fff;
+font-size:11px;
+cursor:pointer;
+}
 </style>
 </head>
 
@@ -180,8 +193,14 @@ padding:5px 10px;
 
 <!-- USERS -->
 <div class="sidebar">
+
 <h4 style="color:#0bf">USERS</h4>
-<div id="users"></div>
+
+<button class="toggle-btn" onclick="toggleOffline()">Show/Hide Offline</button>
+
+<div id="onlineUsers"></div>
+<div id="offlineUsers" style="display:none;margin-top:10px;"></div>
+
 </div>
 
 <!-- CHAT -->
@@ -212,11 +231,20 @@ let active=null;
 let allMessages=[];
 let lastCount=0;
 
+let showOffline=false;
+
 /* LOGIN */
 window.onload=()=>{
 user=prompt("Enter username:");
-if(!user) user="User"+Math.floor(Math.random()*9999);
+if(!user)user="User"+Math.floor(Math.random()*9999);
 };
+
+/* TOGGLE OFFLINE */
+function toggleOffline(){
+showOffline=!showOffline;
+document.getElementById("offlineUsers").style.display=
+showOffline?"block":"none";
+}
 
 /* LOAD */
 async function load(){
@@ -231,7 +259,6 @@ renderMessages();
 renderTyping(data.typing||[]);
 handleNotifications(data.messages||[]);
 
-/* HEADER ONLINE */
 document.getElementById("globalStatus").classList.add("online");
 
 }catch(e){
@@ -239,18 +266,20 @@ document.getElementById("globalStatus").classList.remove("online");
 }
 }
 
-/* USERS */
+/* USERS SPLIT */
 function renderUsers(users){
 
 const now=Date.now();
 
 users=users.map(u=>{
-if(Array.isArray(u)) return u;
+if(Array.isArray(u))return u;
 return [u,""];
 });
 
-document.getElementById("users").innerHTML=
-users.map(u=>{
+let onlineHTML="";
+let offlineHTML="";
+
+users.forEach(u=>{
 
 const name=String(u[0]||"");
 const lastSeen=u[1];
@@ -264,18 +293,22 @@ online=(now-t)<10000;
 }
 }
 
-return `
+const html=`
 <div class="user" onclick="openChat('${name.replace(/'/g,"")}')">
 <span>• ${name}</span>
-<span style="
-width:10px;
-height:10px;
-border-radius:50%;
-background:${online?'#25D366':'red'};
-display:inline-block;
-"></span>
+<span style="width:10px;height:10px;border-radius:50%;display:inline-block;background:${online?'#25D366':'red'}"></span>
 </div>`;
-}).join('');
+
+if(online) onlineHTML+=html;
+else offlineHTML+=html;
+
+});
+
+document.getElementById("onlineUsers").innerHTML=
+"<div style='color:#25D366;margin:5px 0'>ONLINE</div>"+onlineHTML;
+
+document.getElementById("offlineUsers").innerHTML=
+"<div style='color:red;margin:5px 0'>OFFLINE</div>"+offlineHTML;
 }
 
 /* OPEN CHAT */
@@ -449,7 +482,7 @@ time:new Date().toISOString()
 });
 },2000);
 
-/* FAST LOOP */
+/* LOOP */
 setInterval(load,800);
 load();
 </script>
