@@ -175,41 +175,40 @@ font-size:13px;
 </div>
 </div>
 
+
 <script>
-const URL="https://script.google.com/macros/s/AKfycbwnsg8sCprc57e1QwLuW9IqYkWcnMrPT5pmuisE1OCEJ9jFwYNv-dLikIoiDwt83MXKTg/exec";
+const URL="https://script.google.com/macros/s/AKfycbyYCUdPsi0Ck5Rb90bM0SDfzwpziPZ_whuptr2WxJuHAKfXmPZ2QGVCP32Vs9LXe5HCFw/exec";
 
 let user="";
 let active=null;
 let messages=[];
 let users=[];
+let typingUsers={};
 let lastCount=0;
 
-const msgInput=document.getElementById("msg");
+const msg = document.getElementById("msg");
 
-/* LOGIN + REGISTER */
-window.onload=async()=>{
+/* LOGIN */
+window.onload=()=>{
 user = prompt("Enter username:");
 if(!user) user="User"+Math.floor(Math.random()*9999);
 
-await registerUser();
+sendPresence();
+setInterval(load, 1200);
+setInterval(sendPresence, 3000);
 load();
-setInterval(load, 2000);
 };
 
-/* REGISTER USER */
-async function registerUser(){
+/* SAFE POST */
+async function send(data){
 try{
 await fetch(URL,{
 method:"POST",
 headers:{"Content-Type":"application/json"},
-body:JSON.stringify({
-type:"register",
-name:user,
-time:new Date().toISOString()
-})
+body:JSON.stringify(data)
 });
-}catch(err){
-console.log("Register error:",err);
+}catch(e){
+console.log(e);
 }
 }
 
@@ -221,44 +220,43 @@ const data = await res.json();
 
 messages = data.messages || [];
 users = data.users || [];
+typingUsers = data.typing || [];
 
 renderUsers();
 renderMessages();
-notify();
+renderTyping();
 
-document.getElementById("status").classList.add("online");
-
-}catch(err){
-console.log("Load error:",err);
-document.getElementById("status").classList.remove("online");
+}catch(e){
+console.log("Load error",e);
 }
 }
 
 /* USERS */
 function renderUsers(){
-let html="";
 
-users.forEach(u=>{
-let name="",time="";
+const now = Date.now();
 
-if(Array.isArray(u)){
-name=u[0];
-time=u[1];
-}else{
-name=u;
+document.getElementById("users").innerHTML =
+users.map(u=>{
+
+let name = u[0];
+let lastSeen = u[1];
+
+let online = false;
+
+if(lastSeen){
+let t = new Date(lastSeen).getTime();
+if(!isNaN(t)){
+online = (now - t) < 10000;
+}
 }
 
-if(!name) return;
-
-html+=`
+return `
 <div class="user" onclick="openChat('${name}')">
-<span>${name}</span>
-<span class="status-dot online"></span>
+<span>• ${name}</span>
+<span class="status-dot ${online?'online':''}"></span>
 </div>`;
-});
-
-document.getElementById("users").innerHTML=
-html || "<p style='color:#aaa'>No users</p>";
+}).join('');
 }
 
 /* OPEN CHAT */
@@ -269,6 +267,7 @@ document.getElementById("chatTitle").innerText=u;
 
 /* MESSAGES */
 function renderMessages(){
+
 const box=document.getElementById("chatBox");
 
 if(!active){
@@ -283,67 +282,118 @@ const chat = messages.filter(m=>
 
 box.innerHTML = chat.map(m=>{
 const mine = m[0] === user;
+const read = m[4];
 
 return `
 <div class="msg ${mine?'sent':'received'}">
 <div>${m[2]}</div>
 <div class="time">
 ${new Date(m[3]).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}
+${mine?(read?'✓✓':'✓'):''}
 </div>
 </div>`;
-}).join("");
+}).join('');
 
 box.scrollTop = box.scrollHeight;
 }
 
 /* SEND MESSAGE */
-document.getElementById("form").onsubmit = async(e)=>{
+document.getElementById("form").onsubmit=async(e)=>{
 e.preventDefault();
 
-if(!active) return alert("Select a user");
+if(!active)return alert("Select user");
 
-try{
-await fetch(URL,{
-method:"POST",
-headers:{"Content-Type":"application/json"},
-body:JSON.stringify({
+await send({
 type:"message",
 sender:user,
 receiver:active,
-message:msgInput.value,
+message:msg.value,
 time:new Date().toISOString()
-})
 });
 
-msgInput.value="";
+msg.value="";
 
-}catch(err){
-alert("Message failed");
-console.log(err);
-}
+/* STOP TYPING AFTER SEND */
+sendTyping(false);
 };
 
-/* NOTIFY */
-function notify(){
+/* TYPING SYSTEM FIXED FOR YOUR SHEET */
+function sendTyping(state){
+
+send({
+type:"typing",
+name:user,
+isTyping:state,
+time:new Date().toISOString()
+});
+}
+
+/* INPUT LISTENER */
+msg.addEventListener("input",()=>{
+
+sendTyping(true);
+
+clearTimeout(window.typingTimer);
+
+window.typingTimer=setTimeout(()=>{
+sendTyping(false);
+},1000);
+});
+
+/* RENDER TYPING */
+function renderTyping(){
+
+const box = document.getElementById("typingBox");
+
+if(!active){
+box.innerHTML="";
+return;
+}
+
+const typing = typingUsers.filter(t=>
+t[0] !== user && t[1] === "true"
+);
+
+if(typing.length>0){
+box.innerHTML = `<i>${typing[0][0]} is typing...</i>`;
+}else{
+box.innerHTML="";
+}
+}
+
+/* PRESENCE (users sheet update) */
+function sendPresence(){
+send({
+type:"presence",
+name:user,
+time:new Date().toISOString()
+});
+}
+
+/* NOTIFICATIONS */
+function handleNotifications(){
 if(messages.length > lastCount){
 const last = messages[messages.length-1];
 
 if(last && last[1] === user){
-popup(last[0], last[2]);
+showPopup(last[0], last[2]);
 }
 
 lastCount = messages.length;
 }
 }
 
-function popup(sender,msg){
+function showPopup(sender,msg){
 const div=document.createElement("div");
 div.className="popup";
 div.innerText=`📩 ${sender}: ${msg}`;
 document.body.appendChild(div);
 
-setTimeout(()=>div.remove(),3000);
+setTimeout(()=>div.remove(),2500);
 }
+
+/* LOOP */
+setInterval(handleNotifications,1000);
 </script>
 
 </body>
