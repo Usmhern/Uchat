@@ -6,7 +6,10 @@
 <title>UChat</title>
 
 <style>
-:root{--primary:#036;--received:#e4e6eb;}
+:root{
+--primary:#036;
+--received:#e4e6eb;
+}
 
 *{margin:0;padding:0;box-sizing:border-box;}
 
@@ -44,13 +47,14 @@ cursor:pointer;
 display:flex;
 justify-content:space-between;
 align-items:center;
-white-space:nowrap;
-overflow:hidden;
-text-overflow:ellipsis;
 }
 
 /* CHAT */
-.chat-main{flex:1;display:flex;flex-direction:column;}
+.chat-main{
+flex:1;
+display:flex;
+flex-direction:column;
+}
 
 header{
 background:var(--primary);
@@ -61,9 +65,13 @@ justify-content:space-between;
 align-items:center;
 }
 
+/* DOT */
 .status-dot{
-width:10px;height:10px;border-radius:50%;
-background:red;display:inline-block;
+width:10px;
+height:10px;
+border-radius:50%;
+background:red;
+display:inline-block;
 }
 
 .status-dot.online{
@@ -72,9 +80,11 @@ animation:blink 1s infinite;
 box-shadow:0 0 8px #25D366;
 }
 
-@keyframes blink{50%{opacity:0.3;}}
+@keyframes blink{
+50%{opacity:0.3;}
+}
 
-/* CHAT */
+/* CHAT BOX */
 .chat-box{
 flex:1;
 overflow-y:auto;
@@ -122,8 +132,12 @@ outline:none;
 }
 
 button{
-width:40px;height:40px;border-radius:50%;
-border:none;background:#036;color:#fff;
+width:40px;
+height:40px;
+border-radius:50%;
+border:none;
+background:#036;
+color:#fff;
 }
 
 /* USERS HEADER */
@@ -135,8 +149,11 @@ margin-bottom:6px;
 }
 
 .toggle-btn{
-width:28px;height:28px;border-radius:50%;
-background:#036;color:#fff;
+width:28px;
+height:28px;
+border-radius:50%;
+background:#036;
+color:#fff;
 display:flex;
 align-items:center;
 justify-content:center;
@@ -158,11 +175,16 @@ border-radius:10px;
 font-size:13px;
 }
 
-/* TYPING */
-#typingBox{
-font-size:12px;
-color:#555;
-padding:5px 10px;
+/* VOICE */
+.voice-btn{
+background:#ddd;
+color:#000;
+}
+
+.voice-recording{
+background:red !important;
+color:#fff !important;
+animation:blink 0.8s infinite;
 }
 </style>
 </head>
@@ -171,7 +193,7 @@ padding:5px 10px;
 
 <div class="chat-container">
 
-<!-- SIDEBAR -->
+<!-- USERS -->
 <div class="sidebar">
 
 <div class="user-header">
@@ -191,11 +213,11 @@ padding:5px 10px;
 <span id="globalStatus" class="status-dot"></span>
 </header>
 
-<div id="typingBox"></div>
 <div id="chatBox" class="chat-box"></div>
 
 <form id="form" class="input-area">
 <input id="msg" placeholder="Message..." required>
+<button type="button" class="voice-btn">🎤</button>
 <button type="submit">➤</button>
 </form>
 
@@ -207,7 +229,8 @@ const URL="https://script.google.com/macros/s/AKfycbyYCUdPsi0Ck5Rb90bM0SDfzwpziP
 
 let user="";
 let active=null;
-let allMessages=[];
+let messages=[];
+let users=[];
 let showAll=false;
 let lastCount=0;
 
@@ -217,76 +240,63 @@ user=prompt("Enter username:");
 if(!user) user="User"+Math.floor(Math.random()*9999);
 };
 
-/* TOGGLE */
+/* TOGGLE USERS */
 function toggleUsers(){
 showAll=!showAll;
 document.getElementById("toggleBtn").innerText=showAll?"–":"+";
 }
 
-/* SAFE FETCH */
+/* MAIN LOOP */
 async function load(){
 try{
 const res=await fetch(URL+"?t="+Date.now());
 const data=await res.json();
 
-/* SAFETY CHECK */
-allMessages=Array.isArray(data.messages)?data.messages:[];
+messages=Array.isArray(data.messages)?data.messages:[];
+users=Array.isArray(data.users)?data.users:[];
 
-renderUsers(data.users);
+renderUsers();
 renderMessages();
-handleNotifications(allMessages);
+handleNotify();
 
-/* ONLINE STATUS DOT */
 document.getElementById("globalStatus").classList.add("online");
 
 }catch(e){
-console.log("FETCH ERROR:",e);
 document.getElementById("globalStatus").classList.remove("online");
 }
 }
 
-/* 🔥 FIXED USERS RENDER (VERY ROBUST) */
-function renderUsers(users){
+/* USERS FIXED */
+function renderUsers(){
 
 const now=Date.now();
-
-/* SAFETY: always array */
-if(!Array.isArray(users)) users=[];
-
 let html="";
 
 users.forEach(u=>{
 
-/* FIX FORMAT SAFETY */
-let name="";
-let lastSeen="";
+let name="",lastSeen="";
 
-if(typeof u==="string"){
+if(Array.isArray(u)){
+name=u[0];
+lastSeen=u[1];
+}else if(typeof u==="string"){
 name=u;
-}else if(Array.isArray(u)){
-name=u[0]||"";
-lastSeen=u[1]||"";
-}else if(typeof u==="object"){
-name=u.username||u.name||"";
-lastSeen=u.lastSeen||"";
 }
 
-/* SKIP EMPTY */
 if(!name) return;
 
 let online=false;
 
-/* SAFE DATE PARSE */
 const t=new Date(lastSeen).getTime();
 if(!isNaN(t)){
-online=(now - t) < 10000; // 10 sec active
+online=(now-t)<10000;
 }
 
-/* FILTER MODE */
+/* FILTER */
 if(!showAll && !online) return;
 
 html+=`
-<div class="user" onclick="openChat('${name.replace(/'/g,"")}')">
+<div class="user" onclick="openChat('${name}')">
 
 <span>• ${name}</span>
 
@@ -301,9 +311,8 @@ ${online?'animation:blink 1s infinite;':''}
 </div>`;
 });
 
-/* NEVER EMPTY SCREEN */
 document.getElementById("users").innerHTML=
-html || "<div style='color:#aaa;padding:10px'>No users found</div>";
+html || "<div style='padding:10px;color:#aaa'>No users</div>";
 }
 
 /* OPEN CHAT */
@@ -322,22 +331,22 @@ box.innerHTML="<center style='padding:20px'>Select user</center>";
 return;
 }
 
-const msgs=allMessages.filter(m=>
+const chat=messages.filter(m=>
 (m[0]==user&&m[1]==active)||
 (m[0]==active&&m[1]==user)
 );
 
-box.innerHTML=msgs.map(m=>{
+box.innerHTML=chat.map(m=>{
 
 const mine=m[0]===user;
-const read=m[4];
+const seen=m[4];
 
 return `
 <div class="msg ${mine?'sent':'received'}">
 <div>${m[2]}</div>
 <div class="time">
 ${new Date(m[3]).toLocaleTimeString()}
-${mine?(read?'✓✓':'✓'):''}
+${mine?(seen?'✓✓':'✓'):''}
 </div>
 </div>`;
 }).join('');
@@ -366,15 +375,52 @@ time:new Date().toISOString()
 msg.value="";
 };
 
-/* NOTIFICATIONS */
-function handleNotifications(messages){
+/* VOICE */
+let recognition;
+let recording=false;
 
-if(!Array.isArray(messages)) return;
+document.querySelector(".voice-btn").onclick=()=>{
+
+if(!('webkitSpeechRecognition'in window||'SpeechRecognition'in window)){
+alert("Not supported");
+return;
+}
+
+const btn=document.querySelector(".voice-btn");
+
+if(!recording){
+
+btn.classList.add("voice-recording");
+btn.innerHTML="⏹️";
+
+recognition=new (window.SpeechRecognition||window.webkitSpeechRecognition)();
+recognition.lang="en-US";
+recognition.start();
+
+recording=true;
+
+recognition.onresult=(e)=>{
+msg.value=e.results[0][0].transcript;
+};
+
+}else{
+
+btn.classList.remove("voice-recording");
+btn.innerHTML="🎤";
+
+recognition.stop();
+recording=false;
+}
+};
+
+/* NOTIFICATIONS */
+function handleNotify(){
 
 if(messages.length>lastCount){
+
 const last=messages[messages.length-1];
 
-if(last && last[1]===user){
+if(last && last[1]==user){
 showPopup(last[0],last[2]);
 }
 
@@ -385,14 +431,18 @@ lastCount=messages.length;
 function showPopup(sender,msg){
 const div=document.createElement("div");
 div.className="popup";
-div.innerHTML=`📩 ${sender}: ${msg}`;
+div.innerText=`📩 ${sender}: ${msg}`;
 document.body.appendChild(div);
 
 setTimeout(()=>div.remove(),2500);
+
+try{
+new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play();
+}catch(e){}
 }
 
-/* FAST LOOP */
-setInterval(load,1200);
+/* LOOP */
+setInterval(load,1000);
 load();
 </script>
 
