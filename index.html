@@ -40,6 +40,7 @@ overflow-y:auto;
 font-size:12px;
 }
 
+/* USER ITEM */
 .user{
 padding:8px;
 border-bottom:1px solid #222;
@@ -47,6 +48,9 @@ cursor:pointer;
 display:flex;
 justify-content:space-between;
 align-items:center;
+white-space:nowrap;
+overflow:hidden;
+text-overflow:ellipsis;
 }
 
 /* CHAT */
@@ -65,7 +69,7 @@ justify-content:space-between;
 align-items:center;
 }
 
-/* STATUS DOT */
+/* DOT */
 .status-dot{
 width:10px;
 height:10px;
@@ -83,7 +87,7 @@ box-shadow:0 0 8px #25D366;
 50%{opacity:0.3;}
 }
 
-/* CHAT */
+/* CHAT BOX */
 .chat-box{
 flex:1;
 overflow-y:auto;
@@ -165,24 +169,33 @@ font-size:13px;
 z-index:9999;
 }
 
+/* USERS HEADER BUTTON */
+.user-header{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:8px;
+}
+
+.toggle-btn{
+width:28px;
+height:28px;
+border-radius:50%;
+background:#036;
+color:#fff;
+display:flex;
+align-items:center;
+justify-content:center;
+font-size:18px;
+cursor:pointer;
+user-select:none;
+}
+
 /* TYPING */
 #typingBox{
 font-size:12px;
 color:#555;
 padding:5px 10px;
-}
-
-/* OFFLINE TOGGLE */
-.toggle-btn{
-margin-top:5px;
-width:100%;
-padding:5px;
-border:none;
-border-radius:6px;
-background:#036;
-color:#fff;
-font-size:11px;
-cursor:pointer;
 }
 </style>
 </head>
@@ -191,15 +204,15 @@ cursor:pointer;
 
 <div class="chat-container">
 
-<!-- USERS -->
+<!-- SIDEBAR -->
 <div class="sidebar">
 
+<div class="user-header">
 <h4 style="color:#0bf">USERS</h4>
+<div class="toggle-btn" onclick="toggleUsers()" id="toggleBtn">+</div>
+</div>
 
-<button class="toggle-btn" onclick="toggleOffline()">Show/Hide Offline</button>
-
-<div id="onlineUsers"></div>
-<div id="offlineUsers" style="display:none;margin-top:10px;"></div>
+<div id="users"></div>
 
 </div>
 
@@ -231,19 +244,18 @@ let active=null;
 let allMessages=[];
 let lastCount=0;
 
-let showOffline=false;
+let showAllUsers=false;
 
 /* LOGIN */
 window.onload=()=>{
 user=prompt("Enter username:");
-if(!user)user="User"+Math.floor(Math.random()*9999);
+if(!user) user="User"+Math.floor(Math.random()*9999);
 };
 
-/* TOGGLE OFFLINE */
-function toggleOffline(){
-showOffline=!showOffline;
-document.getElementById("offlineUsers").style.display=
-showOffline?"block":"none";
+/* TOGGLE */
+function toggleUsers(){
+showAllUsers=!showAllUsers;
+document.getElementById("toggleBtn").innerText=showAllUsers?"–":"+";
 }
 
 /* LOAD */
@@ -266,18 +278,17 @@ document.getElementById("globalStatus").classList.remove("online");
 }
 }
 
-/* USERS SPLIT */
+/* USERS */
 function renderUsers(users){
 
 const now=Date.now();
 
 users=users.map(u=>{
-if(Array.isArray(u))return u;
+if(Array.isArray(u)) return u;
 return [u,""];
 });
 
-let onlineHTML="";
-let offlineHTML="";
+let html="";
 
 users.forEach(u=>{
 
@@ -293,25 +304,27 @@ online=(now-t)<10000;
 }
 }
 
-const html=`
+/* FILTER */
+if(!showAllUsers && !online) return;
+
+html+=`
 <div class="user" onclick="openChat('${name.replace(/'/g,"")}')">
 <span>• ${name}</span>
-<span style="width:10px;height:10px;border-radius:50%;display:inline-block;background:${online?'#25D366':'red'}"></span>
+<span style="
+width:10px;
+height:10px;
+border-radius:50%;
+display:inline-block;
+background:${online?'#25D366':'red'};
+${online?'animation:blink 1s infinite;':''}
+"></span>
 </div>`;
-
-if(online) onlineHTML+=html;
-else offlineHTML+=html;
-
 });
 
-document.getElementById("onlineUsers").innerHTML=
-"<div style='color:#25D366;margin:5px 0'>ONLINE</div>"+onlineHTML;
-
-document.getElementById("offlineUsers").innerHTML=
-"<div style='color:red;margin:5px 0'>OFFLINE</div>"+offlineHTML;
+document.getElementById("users").innerHTML=html;
 }
 
-/* OPEN CHAT */
+/* CHAT OPEN */
 function openChat(u){
 active=u;
 document.getElementById("chatTitle").innerText=u;
