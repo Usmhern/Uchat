@@ -8,25 +8,25 @@
 <style>
 :root{
 --primary:#0084ff;
---bg:#f0f2f5;
 --received:#e4e6eb;
 }
 
 *{margin:0;padding:0;box-sizing:border-box;}
 
 body{
-background:#000;
 height:100dvh;
-overflow:hidden;
+background:#111;
+display:flex;
+justify-content:center;
+align-items:center;
 font-family:system-ui;
 }
 
-/* FULL APP */
+/* CONTAINER */
 .chat-container{
-height:100dvh;
 width:100%;
-max-width:450px;
-margin:auto;
+max-width:430px;
+height:100dvh;
 background:#fff;
 display:flex;
 flex-direction:column;
@@ -39,12 +39,22 @@ color:#fff;
 padding:15px;
 display:flex;
 justify-content:space-between;
+align-items:center;
+}
+
+#status-container{
+display:flex;
+align-items:center;
+font-size:12px;
 }
 
 #status-dot{
-width:8px;height:8px;border-radius:50%;
-background:red;margin-right:6px;
+width:8px;height:8px;
+border-radius:50%;
+background:red;
+margin-right:6px;
 }
+
 .online #status-dot{background:#42b72a}
 
 /* CHAT */
@@ -70,11 +80,13 @@ font-size:14px;
 align-self:flex-end;
 background:var(--primary);
 color:#fff;
+border-bottom-right-radius:4px;
 }
 
 .received{
 align-self:flex-start;
 background:var(--received);
+border-bottom-left-radius:4px;
 }
 
 .msg-info{
@@ -93,31 +105,50 @@ text-align:right;
 .input-area{
 padding:10px;
 border-top:1px solid #ddd;
+background:#fff;
 }
 
 .input-row{
 display:flex;
-gap:5px;
+gap:6px;
+align-items:center;
 }
 
 input{
 flex:1;
 padding:10px;
-border-radius:8px;
+border-radius:20px;
 border:1px solid #ddd;
+outline:none;
 }
 
-button{
-background:var(--primary);
+/* WHATSAPP SEND BUTTON */
+.send-btn{
+width:42px;
+height:42px;
+border-radius:50%;
+background:#00a884;
+display:flex;
+justify-content:center;
+align-items:center;
 color:#fff;
+font-size:18px;
 border:none;
-padding:10px;
-border-radius:8px;
 }
 
-/* VOICE ACTIVE */
-.listening{
-background:red!important;
+/* VOICE BUTTON */
+.voice-btn{
+width:42px;
+height:42px;
+border-radius:50%;
+background:#eee;
+border:none;
+font-size:18px;
+}
+
+.voice-active{
+background:red !important;
+color:#fff;
 }
 </style>
 </head>
@@ -128,8 +159,8 @@ background:red!important;
 
 <header>
 <h3>UChat</h3>
-<div id="status">
-<span id="status-dot"></span>
+<div id="status-container">
+<div id="status-dot"></div>
 <span id="status-text">Connecting...</span>
 </div>
 </header>
@@ -137,70 +168,73 @@ background:red!important;
 <div id="chat-box" class="chat-box"></div>
 
 <form id="form" class="input-area">
-<input id="username" placeholder="Username" required>
+<input id="username" placeholder="Username" required maxlength="15">
 
 <div class="input-row">
 <input id="msg" placeholder="Message..." required>
-<button type="button" id="voiceBtn">🎤</button>
-<button type="submit">Send</button>
+
+<button type="button" id="voiceBtn" class="voice-btn">🎤</button>
+
+<button type="submit" class="send-btn">➤</button>
 </div>
 </form>
 
 </div>
 
 <script>
-const URL="https://script.google.com/macros/s/AKfycbwiUJSNMlDtSXF8LscIqMTTQBNVWhoNQ2Fzbfs2LX0EARD2inBRS1fsSbwiLXEozVBhzA/exec";
+const URL = "https://script.google.com/macros/s/AKfycbwiUJSNMlDtSXF8LscIqMTTQBNVWhoNQ2Fzbfs2LX0EARD2inBRS1fsSbwiLXEozVBhzA/exec";
 
-let lastCount=0;
+const chatBox = document.getElementById("chat-box");
+const statusText = document.getElementById("status-text");
 
-/* TIME FORMAT */
+let lastCount = 0;
+
+/* TIME */
 function getTime(){
-let d=new Date();
-return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+let d = new Date();
+return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
 }
 
 /* FETCH */
-async function fetchMsg(){
+async function fetchMessages(){
 try{
-let res=await fetch(URL);
-let data=await res.json();
+const res = await fetch(URL);
+const data = await res.json();
 
-if(data.length>lastCount){
+if(data.length > lastCount){
 render(data);
-lastCount=data.length;
-chatBox.scrollTop=chatBox.scrollHeight;
+lastCount = data.length;
+chatBox.scrollTop = chatBox.scrollHeight;
 }
 
 document.body.classList.add("online");
-statusText.innerText="Live";
+statusText.innerText = "Live";
 
-}catch{
+}catch(e){
 document.body.classList.remove("online");
-statusText.innerText="Reconnecting...";
+statusText.innerText = "Reconnecting...";
 }
 }
 
 /* RENDER */
 function render(data){
-let me=username.value;
+const me = username.value;
 
-chatBox.innerHTML=data.map(r=>{
-let mine=r[0]===me;
+chatBox.innerHTML = data.map(row=>{
+const mine = row[0] === me;
 
 return `
 <div class="msg ${mine?'sent':'received'}">
-<div class="msg-info">${r[0]}</div>
-${r[1]}
-<div class="time">${r[2] || ''}</div>
+<div class="msg-info">${row[0]}</div>
+${row[1]}
+<div class="time">${row[2] || ''}</div>
 </div>`;
 }).join('');
 }
 
 /* SEND */
-form.onsubmit=async(e)=>{
+form.onsubmit = async (e)=>{
 e.preventDefault();
-
-let time=getTime();
 
 await fetch(URL,{
 method:"POST",
@@ -208,54 +242,60 @@ mode:"no-cors",
 body:JSON.stringify({
 name:username.value,
 message:msg.value,
-time:time
+time:getTime()
 })
 });
 
 msg.value="";
 };
 
-/* VOICE FIX */
+/* VOICE (PRESS & HOLD FIX) */
 let recognition;
-const voiceBtn=document.getElementById("voiceBtn");
+const voiceBtn = document.getElementById("voiceBtn");
 
-voiceBtn.addEventListener("click",async()=>{
-
+function startVoice(){
 if(!('webkitSpeechRecognition'in window || 'SpeechRecognition'in window)){
 alert("Voice not supported");
 return;
 }
 
-recognition=new (window.SpeechRecognition||window.webkitSpeechRecognition)();
+recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+recognition.lang = "en-US";
+recognition.continuous = true;
 
-recognition.lang="en-US";
-recognition.interimResults=true;
-
-voiceBtn.classList.add("listening");
+voiceBtn.classList.add("voice-active");
 
 recognition.start();
 
-recognition.onresult=(e)=>{
-let transcript="";
+recognition.onresult = (e)=>{
+let text = "";
 for(let i=0;i<e.results.length;i++){
-transcript+=e.results[i][0].transcript;
+text += e.results[i][0].transcript;
 }
-msg.value=transcript;
+msg.value = text;
 };
 
-recognition.onend=()=>{
-voiceBtn.classList.remove("listening");
+recognition.onend = ()=>{
+voiceBtn.classList.remove("voice-active");
 };
+}
 
-recognition.onerror=()=>{
-voiceBtn.classList.remove("listening");
-};
+function stopVoice(){
+if(recognition){
+recognition.stop();
+voiceBtn.classList.remove("voice-active");
+}
+}
 
-});
+/* PRESS & HOLD EVENTS */
+voiceBtn.addEventListener("mousedown", startVoice);
+voiceBtn.addEventListener("mouseup", stopVoice);
+voiceBtn.addEventListener("touchstart", startVoice);
+voiceBtn.addEventListener("touchend", stopVoice);
 
 /* AUTO REFRESH */
-setInterval(fetchMsg,1000);
-fetchMsg();
+setInterval(fetchMessages,1000);
+fetchMessages();
 </script>
 
 </body>
