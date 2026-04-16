@@ -9,7 +9,6 @@
 :root{
 --primary:#036;
 --received:#e4e6eb;
---read:#00c853;
 }
 
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -47,6 +46,10 @@ border-bottom:1px solid #222;
 cursor:pointer;
 display:flex;
 justify-content:space-between;
+align-items:center;
+white-space:nowrap;
+overflow:hidden;
+text-overflow:ellipsis;
 }
 
 /* CHAT */
@@ -65,7 +68,7 @@ justify-content:space-between;
 align-items:center;
 }
 
-/* STATUS DOT */
+/* ONLINE DOT */
 .status-dot{
 width:10px;
 height:10px;
@@ -231,7 +234,7 @@ renderMessages();
 renderTyping(data.typing || []);
 handleNotifications(data.messages || []);
 
-/* ONLINE */
+/* ONLINE STATUS */
 document.getElementById("globalStatus").classList.add("online");
 
 }catch(e){
@@ -239,7 +242,7 @@ document.getElementById("globalStatus").classList.remove("online");
 }
 }
 
-/* USERS */
+/* USERS (ONLINE/OFFLINE DOT FIXED) */
 function renderUsers(users){
 
 const now = Date.now();
@@ -252,43 +255,24 @@ return [u,""];
 document.getElementById("users").innerHTML =
 users.map(u=>{
 
-const name = String(u[0] || "").trim();
+const name = String(u[0] || "");
 const lastSeen = u[1];
 
-let isOnline = false;
+let online = false;
 
-/* SAFE TIME CHECK */
 if(lastSeen){
 const t = new Date(lastSeen).getTime();
 if(!isNaN(t)){
-isOnline = (now - t) < 15000; // 15 seconds = online
+online = (now - t) < 15000;
 }
 }
 
-/* DOT COLOR */
-const dotColor = isOnline ? "#25D366" : "red";
+const color = online ? "#25D366" : "red";
 
 return `
 <div class="user" onclick="openChat('${name.replace(/'/g,"")}')">
 <span>• ${name}</span>
-<span style="
-width:10px;
-height:10px;
-border-radius:50%;
-display:inline-block;
-background:${dotColor};
-box-shadow:${isOnline ? "0 0 6px #25D366" : "none"};
-"></span>
-</div>
-`;
-
-}).join('');
-}
-
-return `
-<div class="user" onclick="openChat('${name.replace(/'/g,"")}')">
-<span>• ${name}</span>
-<span style="color:${online?'#25D366':'red'}">●</span>
+<span style="width:10px;height:10px;border-radius:50%;background:${color};display:inline-block;"></span>
 </div>`;
 }).join('');
 }
@@ -397,13 +381,13 @@ const filtered = typing.filter(x=>x!==user);
 box.innerText = filtered.length ? `${filtered.join(", ")} is typing...` : "";
 }
 
-/* NOTIFICATION */
+/* NOTIFICATIONS */
 function handleNotifications(messages){
 
 if(!Array.isArray(messages)) return;
 
 if(messages.length > lastCount){
-const last = messages[messages.length-1];
+const last = messages[messages.length - 1];
 
 if(last && last[1] === user){
 showPopup(last[0], last[2]);
@@ -435,7 +419,7 @@ let recording = false;
 document.querySelector(".voice-btn").onclick = () => {
 
 if(!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)){
-alert("Not supported");
+alert("Voice not supported");
 return;
 }
 
@@ -466,7 +450,7 @@ recording = false;
 }
 };
 
-/* PRESENCE */
+/* PRESENCE (IMPORTANT FOR ONLINE STATUS) */
 setInterval(()=>{
 fetch(URL,{
 method:"POST",
