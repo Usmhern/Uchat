@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>UChat</title>
+<title>UChat Pro</title>
 
 <style>
 :root{
@@ -34,31 +34,23 @@ flex-direction:column;
 header{
 background:var(--primary);
 color:#fff;
-padding:15px;
+padding:12px;
 display:flex;
 justify-content:space-between;
 align-items:center;
 }
 
-#status-container{
-display:flex;
-align-items:center;
-font-size:12px;
+.online-dot{
+width:8px;height:8px;border-radius:50%;
+background:red;margin-right:6px;
 }
 
-#status-dot{
-width:8px;height:8px;
-border-radius:50%;
-background:red;
-margin-right:6px;
-}
-
-.online #status-dot{background:#42b72a}
+.online .online-dot{background:#42b72a}
 
 .chat-box{
 flex:1;
 overflow-y:auto;
-padding:12px;
+padding:10px;
 display:flex;
 flex-direction:column;
 gap:10px;
@@ -67,46 +59,42 @@ background:#fafafa;
 
 .msg{
 max-width:75%;
-padding:10px 12px;
-border-radius:14px;
+padding:10px;
+border-radius:12px;
 font-size:14px;
+position:relative;
 }
 
 .sent{
 align-self:flex-end;
 background:var(--primary);
 color:#fff;
-border-bottom-right-radius:4px;
 }
 
 .received{
 align-self:flex-start;
 background:var(--received);
-border-bottom-left-radius:4px;
-}
-
-.msg-info{
-font-size:10px;
-opacity:0.6;
 }
 
 .time{
 font-size:10px;
-opacity:0.6;
+opacity:0.7;
 margin-top:4px;
 text-align:right;
+}
+
+.ticks{
+font-size:10px;
+margin-left:5px;
+opacity:0.8;
 }
 
 .input-area{
 padding:10px;
 border-top:1px solid #ddd;
-background:#fff;
-}
-
-.input-row{
 display:flex;
-gap:6px;
-align-items:center;
+gap:5px;
+background:#fff;
 }
 
 input{
@@ -114,216 +102,201 @@ flex:1;
 padding:10px;
 border-radius:20px;
 border:1px solid #ddd;
-outline:none;
 }
 
-.send-btn{
+button{
 width:42px;
 height:42px;
 border-radius:50%;
-background:#00a884;
-display:flex;
-justify-content:center;
-align-items:center;
-color:#fff;
-font-size:18px;
 border:none;
-}
-
-.voice-btn{
-width:42px;
-height:42px;
-border-radius:50%;
 background:#eee;
-border:none;
-font-size:18px;
 }
 
-.voice-active{
-background:red !important;
+.send{
+background:#00a884;
+color:#fff;
+}
+
+/* recording */
+.recording{
+background:red!important;
 color:#fff;
 }
 </style>
 </head>
 
-<body class="connecting">
+<body>
 
 <div class="chat-container">
 
 <header>
 <h3>UChat</h3>
-<div id="status-container">
-<div id="status-dot"></div>
-<span id="status-text">Connecting...</span>
+<div style="display:flex;align-items:center">
+<div class="online-dot"></div>
+<span id="status">Live</span>
 </div>
 </header>
 
-<div id="chat-box" class="chat-box"></div>
+<div id="chat"></div>
 
-<form id="form" class="input-area">
-<input id="username" placeholder="Username" required maxlength="15">
+<div class="input-area">
+<input id="name" placeholder="Name">
 
-<div class="input-row">
-<input id="msg" placeholder="Message..." required>
+<input id="msg" placeholder="Message">
 
-<button type="button" id="voiceBtn" class="voice-btn">🎤</button>
-
-<button type="submit" class="send-btn">➤</button>
+<button id="recBtn">🎤</button>
+<button class="send" onclick="sendMsg()">➤</button>
 </div>
-</form>
 
 </div>
 
 <script>
-const URL = "https://script.google.com/macros/s/AKfycbwiUJSNMlDtSXF8LscIqMTTQBNVWhoNQ2Fzbfs2LX0EARD2inBRS1fsSbwiLXEozVBhzA/exec";
-
-const chatBox = document.getElementById("chat-box");
-const statusText = document.getElementById("status-text");
+const URL = "YOUR_GOOGLE_SCRIPT_URL";
 
 let lastCount = 0;
+let mediaRecorder;
+let audioChunks = [];
 
-/* SIMPLE TIME (FOR SENDING) */
-function getTime(){
-    const d = new Date();
-    let h = d.getHours();
-    let m = d.getMinutes();
-
-    const ampm = h >= 12 ? "am" : "pm";
-
-    h = h % 12 || 12;
-    m = m < 10 ? "0" + m : m;
-
-    return `${h}:${m}${ampm}`;
-}
-
-/* FORMAT TIME (FOR DISPLAYING FROM GOOGLE SHEET) */
-function formatTime(raw){
-    if(!raw) return "";
-
-    const d = new Date(raw);
-
-    let h = d.getHours();
-    let m = d.getMinutes();
-
-    const ampm = h >= 12 ? "pm" : "am";
-
-    h = h % 12 || 12;
-    m = m < 10 ? "0" + m : m;
-
-    return `${h}:${m}${ampm}`;
+/* TIME */
+function timeNow(){
+const d=new Date();
+let h=d.getHours();
+let m=d.getMinutes();
+const ampm=h>=12?"pm":"am";
+h=h%12||12;
+m=m<10?"0"+m:m;
+return `${h}:${m}${ampm}`;
 }
 
 /* FETCH */
-async function fetchMessages(){
+async function fetchData(){
 try{
-const res = await fetch(URL);
-const data = await res.json();
+let res=await fetch(URL);
+let data=await res.json();
 
-if(data.length > lastCount){
 render(data);
-lastCount = data.length;
-chatBox.scrollTop = chatBox.scrollHeight;
-}
 
+lastCount=data.length;
 document.body.classList.add("online");
-statusText.innerText = "Live";
-
-}catch(e){
+}catch{
 document.body.classList.remove("online");
-statusText.innerText = "Reconnecting...";
 }
 }
 
 /* RENDER */
 function render(data){
-const me = username.value;
+let me=name.value;
 
-chatBox.innerHTML = data.map(row=>{
-const mine = row[0] === me;
+document.getElementById("chat").innerHTML=data.map(r=>{
+let mine=r[0]===me;
+
+let ticks = r[4]==="sent"?"✓":(r[4]==="seen"?"✓✓":"");
+
+let audio = r[3]
+? `<audio controls src="${r[3]}"></audio>`
+:"";
 
 return `
 <div class="msg ${mine?'sent':'received'}">
-<div class="msg-info">${row[0]}</div>
-${row[1]}
-<div class="time">${formatTime(row[2])}</div>
+<div>${r[1]||audio}</div>
+${audio}
+<div class="time">
+${r[2]||""} <span class="ticks">${ticks}</span>
+</div>
 </div>`;
 }).join('');
 }
 
-/* SEND */
-form.onsubmit = async (e)=>{
-e.preventDefault();
-
+/* SEND TEXT */
+async function sendMsg(audioData=""){
 await fetch(URL,{
 method:"POST",
 mode:"no-cors",
 body:JSON.stringify({
-name:username.value,
+name:name.value,
 message:msg.value,
-time:getTime()
+time:timeNow(),
+audio:audioData,
+seen:"sent",
+lastActive:Date.now()
 })
 });
 
 msg.value="";
+}
+
+/* VOICE NOTE */
+document.getElementById("recBtn").onclick=async()=>{
+
+if(!mediaRecorder){
+
+let stream=await navigator.mediaDevices.getUserMedia({audio:true});
+
+mediaRecorder=new MediaRecorder(stream);
+
+mediaRecorder.ondataavailable=e=>{
+audioChunks.push(e.data);
 };
 
-/* VOICE (FIXED) */
-let recognition;
-let isListening = false;
+mediaRecorder.onstop=()=>{
+let blob=new Blob(audioChunks,{type:"audio/webm"});
+let reader=new FileReader();
 
-const voiceBtn = document.getElementById("voiceBtn");
-
-voiceBtn.onclick = () => {
-
-    if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-        alert("Voice not supported on this device");
-        return;
-    }
-
-    if (!isListening) {
-        recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-
-        recognition.lang = "en-US";
-        recognition.continuous = true;
-        recognition.interimResults = true;
-
-        recognition.start();
-        isListening = true;
-
-        voiceBtn.classList.add("voice-active");
-        voiceBtn.innerText = "⏹";
-
-        recognition.onresult = (e) => {
-            let transcript = "";
-            for (let i = 0; i < e.results.length; i++) {
-                transcript += e.results[i][0].transcript;
-            }
-            msg.value = transcript;
-        };
-
-        recognition.onend = () => {
-            if (isListening) recognition.start();
-        };
-
-        recognition.onerror = () => {
-            stopVoice();
-        };
-
-    } else {
-        stopVoice();
-    }
+reader.onloadend=()=>{
+sendMsg(reader.result);
 };
 
-function stopVoice() {
-    if (recognition) recognition.stop();
-    isListening = false;
-    voiceBtn.classList.remove("voice-active");
-    voiceBtn.innerText = "🎤";
+reader.readAsDataURL(blob);
+audioChunks=[];
+};
+
+mediaRecorder.start();
+
+recBtn.classList.add("recording");
+
+}else{
+mediaRecorder.stop();
+mediaRecorder=null;
+recBtn.classList.remove("recording");
+}
+};
+
+/* SEND BUTTON */
+function sendMsg(audio=""){
+sendMsgInternal(audio);
+}
+
+async function sendMsgInternal(audio=""){
+await fetch(URL,{
+method:"POST",
+mode:"no-cors",
+body:JSON.stringify({
+name:name.value,
+message:msg.value,
+time:timeNow(),
+audio:audio,
+seen:"sent",
+lastActive:Date.now()
+})
+});
+msg.value="";
 }
 
 /* AUTO REFRESH */
-setInterval(fetchMessages,1000);
-fetchMessages();
+setInterval(fetchData,1000);
+fetchData();
+
+/* UPDATE SEEN */
+setInterval(async()=>{
+await fetch(URL,{
+method:"POST",
+mode:"no-cors",
+body:JSON.stringify({
+seen:"seen",
+name:name.value
+})
+});
+},3000);
 </script>
 
 </body>
