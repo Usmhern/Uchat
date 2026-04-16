@@ -75,13 +75,9 @@ border-radius:50%;
 background:red;
 display:inline-block;
 }
-.online-blink{
-background:#25D366;
-box-shadow:0 0 8px #25D366;
-animation:blink 1s infinite;
-}
-@keyframes blink{
-50%{opacity:0.4;}
+.online{
+background:#25D366 !important;
+box-shadow:0 0 6px #25D366;
 }
 
 /* CHAT BOX */
@@ -131,7 +127,6 @@ border:1px solid #ccc;
 outline:none;
 }
 
-/* BUTTONS */
 button{
 width:40px;
 height:40px;
@@ -139,21 +134,6 @@ border-radius:50%;
 border:none;
 background:#036;
 color:#fff;
-}
-
-.voice-btn{
-background:#ddd;
-color:#000;
-display:flex;
-align-items:center;
-justify-content:center;
-font-size:16px;
-}
-
-.voice-recording{
-background:red !important;
-color:#fff !important;
-animation:blink 0.8s infinite;
 }
 
 /* POPUP */
@@ -202,8 +182,6 @@ padding:5px 10px;
 
 <form id="form" class="input-area">
 <input id="msg" placeholder="Message..." required>
-
-<button type="button" class="voice-btn">🎤</button>
 <button type="submit">➤</button>
 </form>
 
@@ -224,7 +202,7 @@ user=prompt("Enter username:");
 if(!user) user="User"+Math.floor(Math.random()*9999);
 };
 
-/* LOAD */
+/* LOAD DATA */
 async function load(){
 try{
 const res=await fetch(URL);
@@ -237,18 +215,14 @@ renderMessages();
 renderTyping(data.typing||[]);
 handleNotifications(data.messages||[]);
 
-const dot=document.getElementById("globalStatus");
-dot.style.background="#25D366";
-dot.classList.add("online-blink");
+document.getElementById("globalStatus").classList.add("online");
 
 }catch(e){
-const dot=document.getElementById("globalStatus");
-dot.style.background="red";
-dot.classList.remove("online-blink");
+document.getElementById("globalStatus").classList.remove("online");
 }
 }
 
-/* USERS */
+/* USERS FIX (CLICK WORKS NOW) */
 function renderUsers(users){
 
 const now=Date.now();
@@ -261,34 +235,34 @@ return [u,""];
 document.getElementById("users").innerHTML=
 users.map(u=>{
 
-const name=u[0];
+const name=String(u[0]||"");
 const lastSeen=u[1];
 
 let online=false;
 
 if(lastSeen){
 const t=new Date(lastSeen).getTime();
+if(!isNaN(t)){
 online=(now-t)<30000;
+}
 }
 
 return `
-<div class="user" onclick="openChat('${name}',${online})">
+<div class="user"
+data-name="${name}"
+onclick="openChat(this.dataset.name)"
+>
 <span>• ${name}</span>
-<span style="color:${online?'#25D366':'red'}">
-${online?'online':'offline'}
-</span>
-</div>`;
+<span style="color:${online?'#25D366':'red'}">●</span>
+</div>
+`;
 }).join('');
 }
 
-/* OPEN CHAT */
-let selectedOnline=false;
-
-function openChat(u,online){
+/* OPEN CHAT FIX */
+function openChat(u){
 active=u;
-selectedOnline=online;
-document.getElementById("chatTitle")=
-document.getElementById("chatTitle").innerText=u+(online?" 🟢":" 🔴");
+document.getElementById("chatTitle").innerText=u;
 }
 
 /* MESSAGES */
@@ -376,7 +350,7 @@ name:user
 
 });
 
-/* TYPING DISPLAY */
+/* TYPING UI */
 function renderTyping(list){
 
 const box=document.getElementById("typingBox");
@@ -390,7 +364,7 @@ const filtered=typing.filter(x=>x!==user);
 box.innerText=filtered.length?`${filtered.join(", ")} is typing...`:"";
 }
 
-/* NOTIFICATION */
+/* NOTIFICATIONS */
 function handleNotifications(messages){
 
 if(!Array.isArray(messages))return;
@@ -421,44 +395,6 @@ new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play();
 }catch(e){}
 }
 
-/* VOICE BUTTON */
-let recognition;
-let recording=false;
-
-document.querySelector(".voice-btn").onclick=()=>{
-
-if(!('webkitSpeechRecognition'in window||'SpeechRecognition'in window)){
-alert("Not supported");
-return;
-}
-
-const btn=document.querySelector(".voice-btn");
-
-if(!recording){
-
-btn.classList.add("voice-recording");
-btn.innerHTML="⏹️";
-
-recognition=new (window.SpeechRecognition||window.webkitSpeechRecognition)();
-recognition.lang="en-US";
-recognition.start();
-
-recording=true;
-
-recognition.onresult=(e)=>{
-msg.value=e.results[0][0].transcript;
-};
-
-}else{
-
-btn.classList.remove("voice-recording");
-btn.innerHTML="🎤";
-
-recognition.stop();
-recording=false;
-}
-};
-
 /* PRESENCE */
 setInterval(()=>{
 fetch(URL,{
@@ -466,7 +402,8 @@ method:"POST",
 mode:"no-cors",
 body:JSON.stringify({
 type:"presence",
-name:user
+name:user,
+time:new Date().toISOString()
 })
 });
 },3000);
