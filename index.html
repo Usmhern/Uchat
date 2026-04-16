@@ -9,7 +9,6 @@
 :root{
 --primary:#036;
 --received:#e4e6eb;
---read:#00c853;
 }
 
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -41,12 +40,10 @@ font-size:12px;
 }
 
 .user{
-padding:5px;
+padding:8px;
 border-bottom:1px solid #222;
 cursor:pointer;
 }
-
-.user:hover{background:#1e293b;}
 
 .chat-main{
 flex:1;
@@ -63,20 +60,15 @@ justify-content:space-between;
 align-items:center;
 }
 
-#status-container{
-display:flex;
-align-items:center;
+.status-online{
+color:#0f0;
 font-size:12px;
 }
 
-#status-dot{
-width:10px;height:10px;
-border-radius:50%;
-background:red;
-margin-right:6px;
+.status-offline{
+color:red;
+font-size:12px;
 }
-
-.online #status-dot{background:#0f0;}
 
 .chat-box{
 flex:1;
@@ -91,74 +83,41 @@ background:#fafafa;
 .msg{
 max-width:75%;
 padding:10px;
-border-radius:15px 0px 15px 0px;
+border-radius:12px;
 font-size:14px;
-box-shadow:2px 0px 4px black;
 }
 
 .sent{align-self:flex-end;background:#052;color:#fff;}
 .received{align-self:flex-start;background:var(--received);}
 
-.msg-info{font-size:10px;opacity:0.6;margin-bottom:2px;}
-
 .time{
 font-size:10px;
-opacity:0.7;
+opacity:0.6;
 margin-top:4px;
 text-align:right;
 }
 
-.read{font-size:11px;margin-left:6px;color:#cfd8dc;}
-.read.seen{color:#fff;}
-
-.typing{
-font-size:12px;
-font-style:italic;
-color:navy;
-background:#fff;
-padding:6px 10px;
-height:18px;
-}
-
 .input-area{
 padding:10px;
-border-top:1px solid #ddd;
 background:#fff;
-}
-
-.input-row{
 display:flex;
-gap:6px;
-align-items:center;
+gap:5px;
 }
 
 input{
 flex:1;
 padding:10px;
 border-radius:20px;
-box-shadow:inset 0px 0px 2px black;
-border:1px solid #ddd;
-outline:none;
+border:1px solid #ccc;
 }
 
-.send-btn{
-width:40px;height:40px;
-border-radius:50%;
+button{
+width:45px;
+border:none;
 background:#036;
-border:none;
 color:#fff;
-}
-
-.voice-btn{
-width:40px;height:40px;
 border-radius:50%;
-background:#eee;
-border:none;
 }
-
-.voice-active{background:red !important;color:#fff;}
-
-.hidden{display:none;}
 </style>
 </head>
 
@@ -174,139 +133,92 @@ border:none;
 <div class="chat-main">
 
 <header>
-<h3 id="chat-name">UChat</h3>
-<div id="status-container">
-<div id="status-dot"></div>
-<span id="status-text">Connecting...</span>
-</div>
+<h3 id="chatTitle">UChat</h3>
+<span id="status">...</span>
 </header>
 
-<div id="chat-box" class="chat-box"></div>
-<div id="typing" class="typing"></div>
+<div id="chatBox" class="chat-box"></div>
 
 <form id="form" class="input-area">
-
-<input id="username" class="hidden">
-
-<div class="input-row">
 <input id="msg" placeholder="Message..." required>
-<button type="button" id="voiceBtn" class="voice-btn">🎤</button>
-<button type="submit" class="send-btn">➤</button>
-</div>
-
+<button>➤</button>
 </form>
 
 </div>
 </div>
 
 <script>
-const URL = "https://script.google.com/macros/s/AKfycbwEardhr-HhvxnIfFeCN75RBaGTf3mLLwp8bEBA7I9X3i_ecymAAiQtnZggA-Yor8dv9g/exec";
+const URL = "https://script.google.com/macros/s/AKfycbyYCUdPsi0Ck5Rb90bM0SDfzwpziPZ_whuptr2WxJuHAKfXmPZ2QGVCP32Vs9LXe5HCFw/exec";
 
-const chatBox = document.getElementById("chat-box");
-const usersBox = document.getElementById("users");
-const typingBox = document.getElementById("typing");
-const statusText = document.getElementById("status-text");
-const username = document.getElementById("username");
-const msg = document.getElementById("msg");
-const form = document.getElementById("form");
-const voiceBtn = document.getElementById("voiceBtn");
-const chatName = document.getElementById("chat-name");
-
+let user = "";
+let active = null;
+let allMessages = [];
 let lastCount = 0;
-let lockedUsername = null;
-let activeUser = null;
 
 /* LOGIN */
-window.onload = () => {
-let name = "";
-while(!name){
-name = prompt("Enter your username:");
-if(name) name = name.trim();
-}
-lockedUsername = name;
-username.value = name;
-
-/* auto register */
-fetch(URL,{
-method:"POST",
-mode:"no-cors",
-body:JSON.stringify({name})
-});
+window.onload = ()=>{
+user = prompt("Enter username:");
+if(!user) user = "User"+Math.floor(Math.random()*1000);
 };
 
-/* TIME */
-function formatTime(t){
-const d = new Date(t);
-let h = d.getHours();
-let m = d.getMinutes();
-const ampm = h >= 12 ? "pm" : "am";
-h = h % 12 || 12;
-m = m < 10 ? "0" + m : m;
-return `${h}:${m}${ampm}`;
-}
-
 /* FETCH */
-async function fetchMessages(){
+async function load(){
 try{
 const res = await fetch(URL);
 const data = await res.json();
 
-renderMessages(data.messages || []);
+allMessages = data.messages || [];
+
 renderUsers(data.users || []);
-renderTyping(data.typing || []);
+renderMessages();
 
-document.body.classList.add("online");
-statusText.innerText = "Live";
+handleNotifications(data.messages);
 
-}catch{
-statusText.innerText = "Reconnecting...";
+document.getElementById("status").innerText="Online";
+document.getElementById("status").className="status-online";
+
+}catch(e){
+document.getElementById("status").innerText="Reconnecting...";
+document.getElementById("status").className="status-offline";
 }
 }
 
 /* USERS */
 function renderUsers(users){
-const filtered = users.filter(u => u !== lockedUsername);
+users = users.filter(u=>u!==user);
 
-usersBox.innerHTML = filtered.map(u=>`
-<div class="user" onclick="selectUser('${u}')">• ${u}</div>
+document.getElementById("users").innerHTML =
+users.map(u=>`
+<div class="user" onclick="openChat('${u}')">${u}</div>
 `).join('');
 }
 
-/* SELECT USER */
-function selectUser(u){
-activeUser = u;
-chatName.innerText = u;
+function openChat(u){
+active = u;
+document.getElementById("chatTitle").innerText = u;
+renderMessages();
 }
 
 /* MESSAGES */
-function renderMessages(messages){
-
-if(!activeUser){
-chatBox.innerHTML = "<center>Select a user</center>";
+function renderMessages(){
+if(!active){
+chatBox.innerHTML = "<center>Select user</center>";
 return;
 }
 
-const filtered = messages.filter(r=>{
-return (
-(r[0] === lockedUsername && r[1] === activeUser) ||
-(r[0] === activeUser && r[1] === lockedUsername)
+const chatBox = document.getElementById("chatBox");
+
+const msgs = allMessages.filter(m=>
+(m[0]==user && m[1]==active) ||
+(m[0]==active && m[1]==user)
 );
-});
 
-chatBox.innerHTML = filtered.map(r=>{
-const mine = r[0] === lockedUsername;
-const read = r[4];
-
+chatBox.innerHTML = msgs.map(m=>{
+const mine = m[0]===user;
 return `
 <div class="msg ${mine?'sent':'received'}">
-<div class="msg-info">${r[0]}</div>
-<div>${r[2]}</div>
-<div class="time">
-${formatTime(r[3])}
-<span class="read ${read?'seen':''}">
-${mine ? (read ? '✓✓' : '✓') : ''}
-</span>
-</div>
+<div>${m[2]}</div>
+<div class="time">${new Date(m[3]).toLocaleTimeString()}</div>
 </div>`;
 }).join('');
 
@@ -314,21 +226,18 @@ chatBox.scrollTop = chatBox.scrollHeight;
 }
 
 /* SEND */
-form.onsubmit = async (e)=>{
+document.getElementById("form").onsubmit = async(e)=>{
 e.preventDefault();
 
-if(!activeUser){
-alert("Select a user first");
-return;
-}
+if(!active) return alert("Select user");
 
 await fetch(URL,{
 method:"POST",
 mode:"no-cors",
 body:JSON.stringify({
 type:"message",
-sender:lockedUsername,
-receiver:activeUser,
+sender:user,
+receiver:active,
 message:msg.value,
 time:new Date().toISOString()
 })
@@ -337,70 +246,49 @@ time:new Date().toISOString()
 msg.value="";
 };
 
-/* TYPING (unchanged) */
-let typingTimeout;
+/* NOTIFICATION */
+function handleNotifications(messages){
+if(!messages) return;
 
-msg.addEventListener("input",()=>{
-clearTimeout(typingTimeout);
+if(messages.length > lastCount){
+const last = messages[messages.length-1];
 
+if(last[1] === user){
+showPopup(last[0], last[2]);
+}
+
+lastCount = messages.length;
+}
+}
+
+function showPopup(sender,msg){
+const div = document.createElement("div");
+div.style.position="fixed";
+div.style.bottom="20px";
+div.style.left="50%";
+div.style.transform="translateX(-50%)";
+div.style.background="#036";
+div.style.color="#fff";
+div.style.padding="10px";
+div.style.borderRadius="10px";
+div.innerText=`${sender}: ${msg}`;
+document.body.appendChild(div);
+
+setTimeout(()=>div.remove(),3000);
+}
+
+/* ONLINE STATUS PING */
+setInterval(()=>{
 fetch(URL,{
 method:"POST",
 mode:"no-cors",
-body:JSON.stringify({
-type:"typing",
-name:lockedUsername
-})
+body:JSON.stringify({type:"presence",name:user})
 });
+},5000);
 
-typingTimeout=setTimeout(()=>{
-fetch(URL,{
-method:"POST",
-mode:"no-cors",
-body:JSON.stringify({
-type:"typing-stop",
-name:lockedUsername
-})
-});
-},1500);
-});
-
-/* VOICE */
-let recognition;
-let isListening=false;
-
-voiceBtn.onclick=()=>{
-if(!('webkitSpeechRecognition'in window||'SpeechRecognition'in window)){
-alert("Not supported");
-return;
-}
-
-if(!isListening){
-recognition=new (window.SpeechRecognition||window.webkitSpeechRecognition)();
-recognition.start();
-isListening=true;
-
-voiceBtn.classList.add("voice-active");
-voiceBtn.innerText="⏹";
-
-recognition.onresult=(e)=>{
-let t="";
-for(let i=0;i<e.results.length;i++){
-t+=e.results[i][0].transcript;
-}
-msg.value=t;
-};
-
-}else{
-recognition.stop();
-isListening=false;
-voiceBtn.classList.remove("voice-active");
-voiceBtn.innerText="🎤";
-}
-};
-
-/* AUTO */
-setInterval(fetchMessages,1000);
-fetchMessages();
+/* LOOP */
+setInterval(load,2000);
+load();
 </script>
 
 </body>
