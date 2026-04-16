@@ -202,7 +202,7 @@ padding:5px 10px;
 </div>
 </div>
 
-<script>
+
 const URL="https://script.google.com/macros/s/AKfycbyYCUdPsi0Ck5Rb90bM0SDfzwpziPZ_whuptr2WxJuHAKfXmPZ2QGVCP32Vs9LXe5HCFw/exec";
 
 let user="";
@@ -298,6 +298,122 @@ function renderMessages(){
 const box=document.getElementById("chatBox");
 
 if(!active){
+<script>
+const URL="https://script.google.com/macros/s/AKfycbyYCUdPsi0Ck5Rb90bM0SDfzwpziPZ_whuptr2WxJuHAKfXmPZ2QGVCP32Vs9LXe5HCFw/exec";
+
+let user="";
+let active=null;
+let allMessages=[];
+let showAll=false;
+let lastCount=0;
+
+/* LOGIN */
+window.onload=()=>{
+user=prompt("Enter username:");
+if(!user) user="User"+Math.floor(Math.random()*9999);
+};
+
+/* TOGGLE */
+function toggleUsers(){
+showAll=!showAll;
+document.getElementById("toggleBtn").innerText=showAll?"–":"+";
+}
+
+/* SAFE FETCH */
+async function load(){
+try{
+const res=await fetch(URL+"?t="+Date.now());
+const data=await res.json();
+
+/* SAFETY CHECK */
+allMessages=Array.isArray(data.messages)?data.messages:[];
+
+renderUsers(data.users);
+renderMessages();
+handleNotifications(allMessages);
+
+/* ONLINE STATUS DOT */
+document.getElementById("globalStatus").classList.add("online");
+
+}catch(e){
+console.log("FETCH ERROR:",e);
+document.getElementById("globalStatus").classList.remove("online");
+}
+}
+
+/* 🔥 FIXED USERS RENDER (VERY ROBUST) */
+function renderUsers(users){
+
+const now=Date.now();
+
+/* SAFETY: always array */
+if(!Array.isArray(users)) users=[];
+
+let html="";
+
+users.forEach(u=>{
+
+/* FIX FORMAT SAFETY */
+let name="";
+let lastSeen="";
+
+if(typeof u==="string"){
+name=u;
+}else if(Array.isArray(u)){
+name=u[0]||"";
+lastSeen=u[1]||"";
+}else if(typeof u==="object"){
+name=u.username||u.name||"";
+lastSeen=u.lastSeen||"";
+}
+
+/* SKIP EMPTY */
+if(!name) return;
+
+let online=false;
+
+/* SAFE DATE PARSE */
+const t=new Date(lastSeen).getTime();
+if(!isNaN(t)){
+online=(now - t) < 10000; // 10 sec active
+}
+
+/* FILTER MODE */
+if(!showAll && !online) return;
+
+html+=`
+<div class="user" onclick="openChat('${name.replace(/'/g,"")}')">
+
+<span>• ${name}</span>
+
+<span style="
+width:10px;
+height:10px;
+border-radius:50%;
+background:${online?'#25D366':'red'};
+${online?'animation:blink 1s infinite;':''}
+"></span>
+
+</div>`;
+});
+
+/* NEVER EMPTY SCREEN */
+document.getElementById("users").innerHTML=
+html || "<div style='color:#aaa;padding:10px'>No users found</div>";
+}
+
+/* OPEN CHAT */
+function openChat(u){
+active=u;
+document.getElementById("chatTitle").innerText=u;
+}
+
+/* MESSAGES */
+function renderMessages(){
+
+const box=document.getElementById("chatBox");
+
+if(!active){
 box.innerHTML="<center style='padding:20px'>Select user</center>";
 return;
 }
@@ -349,7 +465,7 @@ msg.value="";
 /* NOTIFICATIONS */
 function handleNotifications(messages){
 
-if(!Array.isArray(messages))return;
+if(!Array.isArray(messages)) return;
 
 if(messages.length>lastCount){
 const last=messages[messages.length-1];
@@ -367,11 +483,12 @@ const div=document.createElement("div");
 div.className="popup";
 div.innerHTML=`📩 ${sender}: ${msg}`;
 document.body.appendChild(div);
+
 setTimeout(()=>div.remove(),2500);
 }
 
-/* LOOP (FIXED FAST + STABLE) */
-setInterval(load,1200); // stable refresh
+/* FAST LOOP */
+setInterval(load,1200);
 load();
 </script>
 
