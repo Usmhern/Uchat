@@ -12,6 +12,21 @@
 --read:#00c853;
 }
 
+  .user{
+padding:10px;
+border-bottom:1px solid #1e293b;
+cursor:pointer;
+}
+
+.user:hover{
+background:#1e293b;
+}
+
+header h3::after{
+content:" •";
+color:#0f0;
+font-size:12px;
+}
 *{margin:0;padding:0;box-sizing:border-box;}
 
 body{
@@ -200,7 +215,7 @@ border:none;
 <script>
 const URL = "https://script.google.com/macros/s/AKfycbwzI4mCPxny_U_9ZQLTgI_SYXvKp0sA_vUMCdjKSgjci0iT7CdKTMiMh9NV7E-1K6gKmA/exec";
 
-/* DOM FIX */
+/* DOM */
 const chatBox = document.getElementById("chat-box");
 const usersBox = document.getElementById("users");
 const typingBox = document.getElementById("typing");
@@ -208,36 +223,30 @@ const statusText = document.getElementById("status-text");
 const username = document.getElementById("username");
 const msg = document.getElementById("msg");
 const form = document.getElementById("form");
-const voiceBtn = document.getElementById("voiceBtn");
 
-let lastCount = 0;
-let lockedUsername = null;
+let currentUser = "";
+let activeChatUser = null;
+let allMessages = [];
 
-/* ✅ ASK USERNAME ON LOAD */
+/* LOGIN */
 window.onload = () => {
 let name = "";
-
 while(!name){
 name = prompt("Enter your username:");
 if(name) name = name.trim();
 }
-
-lockedUsername = name;
+currentUser = name;
 username.value = name;
 };
 
 /* TIME */
 function formatTime(t){
-if(!t) return "";
 const d = new Date(t);
-
 let h = d.getHours();
 let m = d.getMinutes();
 const ampm = h >= 12 ? "pm" : "am";
-
 h = h % 12 || 12;
 m = m < 10 ? "0" + m : m;
-
 return `${h}:${m}${ampm}`;
 }
 
@@ -247,168 +256,94 @@ try{
 const res = await fetch(URL);
 const data = await res.json();
 
-if(data.messages && data.messages.length > lastCount){
-renderMessages(data.messages);
-lastCount = data.messages.length;
-chatBox.scrollTop = chatBox.scrollHeight;
-}
+allMessages = data.messages || [];
 
-if(data.users) renderUsers(data.users);
-if(data.typing) renderTyping(data.typing);
+renderUsers(data.users || []);
+renderChat();
 
 document.body.classList.add("online");
-statusText.innerText = "Live";
+statusText.innerText = "Online";
 
 }catch(e){
-document.body.classList.remove("online");
-statusText.innerText = "Reconnecting...";
+statusText.innerText = "Connecting...";
 }
 }
 
-/* MESSAGES */
-function renderMessages(messages){
-chatBox.innerHTML = messages.map(r=>{
-const mine = r[0] === lockedUsername;
-const read = r[3];
+/* USERS LIST (CHAT LIST) */
+function renderUsers(users){
+const filtered = users.filter(u => u !== currentUser);
 
+usersBox.innerHTML = filtered.map(u=>{
 return `
-<div class="msg ${mine?'sent':'received'}">
-<div class="msg-info">${r[0]}</div>
-<div>${r[1]}</div>
-<div class="time">
-${formatTime(r[2])}
-<span class="read ${read?'seen':''}">
-${mine ? (read ? '✓✓' : '✓') : ''}
-</span>
-</div>
+<div class="user" onclick="openChat('${u}')">
+${u}
 </div>`;
 }).join('');
 }
 
-/* USERS */
-function renderUsers(users) {
-  // We add the • character right before the user variable ${u}
-  usersBox.innerHTML = users.map(u => `<div class="user">• ${u}</div>`).join('');
+/* OPEN CHAT */
+function openChat(user){
+activeChatUser = user;
+renderChat();
 }
 
-
-/* TYPING */
-function renderTyping(list){
-const filtered = list.filter(u => u !== lockedUsername);
-
-typingBox.innerText =
-filtered.length === 0 ? "" :
-filtered.length === 1 ? `${filtered[0]} is typing...` :
-`${filtered.join(", ")} are typing...`;
+/* RENDER CHAT */
+function renderChat(){
+if(!activeChatUser){
+chatBox.innerHTML = "<center>Select a user</center>";
+return;
 }
 
-/* SEND */
+const msgs = allMessages.filter(m=>{
+return (
+(m[0] === currentUser && m[1] === activeChatUser) ||
+(m[0] === activeChatUser && m[1] === currentUser)
+);
+});
+
+chatBox.innerHTML = msgs.map(r=>{
+const mine = r[0] === currentUser;
+
+return `
+<div class="msg ${mine?'sent':'received'}">
+<div>${r[2]}</div>
+<div class="time">
+${formatTime(r[3])}
+<span class="read">${mine ? '✓✓' : ''}</span>
+</div>
+</div>`;
+}).join('');
+
+chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+/* SEND MESSAGE */
 form.onsubmit = async (e)=>{
 e.preventDefault();
+
+if(!activeChatUser){
+alert("Select a user first");
+return;
+}
 
 await fetch(URL,{
 method:"POST",
 mode:"no-cors",
 body:JSON.stringify({
 type:"message",
-name:lockedUsername,
+sender:currentUser,
+receiver:activeChatUser,
 message:msg.value,
-time:formatTime(new Date())
+time:new Date().toISOString()
 })
 });
 
 msg.value="";
 };
 
-/* TYPING */
-let typingTimeout;
-
-msg.addEventListener("input",()=>{
-clearTimeout(typingTimeout);
-
-fetch(URL,{
-method:"POST",
-mode:"no-cors",
-body:JSON.stringify({
-type:"typing",
-name:lockedUsername
-})
-});
-
-typingTimeout=setTimeout(()=>{
-fetch(URL,{
-method:"POST",
-mode:"no-cors",
-body:JSON.stringify({
-type:"typing-stop",
-name:lockedUsername
-})
-});
-},1500);
-});
-
-/* PRESENCE */
-setInterval(()=>{
-fetch(URL,{
-method:"POST",
-mode:"no-cors",
-body:JSON.stringify({
-type:"presence",
-name:lockedUsername
-})
-});
-
-fetch(URL,{
-method:"POST",
-mode:"no-cors",
-body:JSON.stringify({
-type:"read",
-name:lockedUsername
-})
-});
-
-},5000);
-
-/* VOICE */
-let recognition;
-let isListening=false;
-
-voiceBtn.onclick=()=>{
-if(!('webkitSpeechRecognition'in window||'SpeechRecognition'in window)){
-alert("Not supported");
-return;
-}
-
-if(!isListening){
-recognition=new (window.SpeechRecognition||window.webkitSpeechRecognition)();
-recognition.lang="en-US";
-recognition.start();
-isListening=true;
-
-voiceBtn.classList.add("voice-active");
-voiceBtn.innerText="⏹";
-
-recognition.onresult=(e)=>{
-let t="";
-for(let i=0;i<e.results.length;i++){
-t+=e.results[i][0].transcript;
-}
-msg.value=t;
-};
-
-}else{
-recognition.stop();
-isListening=false;
-voiceBtn.classList.remove("voice-active");
-voiceBtn.innerText="🎤";
-}
-};
-
 /* AUTO REFRESH */
 setInterval(fetchMessages,1000);
 fetchMessages();
-
 </script>
-
 </body>
 </html>
