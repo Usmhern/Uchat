@@ -257,22 +257,40 @@ statusText.innerText = "Reconnecting...";
 function renderMessages(messages){
 const me = username.value;
 
-chatBox.innerHTML = messages.map(r=>{
+chatBox.innerHTML = messages.map(r => {
+
 const mine = r[0] === me;
 const read = r[3];
+
+/* ✅ FIX TIME HERE */
+let time = r[2];
+
+if(time){
+const d = new Date(time);
+
+let h = d.getHours();
+let m = d.getMinutes();
+
+const ampm = h >= 12 ? "pm" : "am";
+
+h = h % 12 || 12;
+m = m < 10 ? "0" + m : m;
+
+time = `${h}:${m}${ampm}`;
+}
 
 return `
 <div class="msg ${mine?'sent':'received'}">
 <div>${r[1]}</div>
 <div class="time">
-${r[2]}
+${time}
 <span class="read ${read?'seen':''}">
 ${mine ? (read ? '✓✓' : '✓') : ''}
 </span>
 </div>
 </div>`;
 }).join('');
-}
+  }
 
 /* USERS */
 function renderUsers(users){
