@@ -224,6 +224,7 @@ animation:blink 0.8s infinite;
 </div>
 </div>
 
+
 <script>
 const URL="https://script.google.com/macros/s/AKfycbyYCUdPsi0Ck5Rb90bM0SDfzwpziPZ_whuptr2WxJuHAKfXmPZ2QGVCP32Vs9LXe5HCFw/exec";
 
@@ -231,14 +232,35 @@ let user="";
 let active=null;
 let messages=[];
 let users=[];
-let showAll=false;
+let showAll=true;
 let lastCount=0;
 
-/* LOGIN */
-window.onload=()=>{
-user=prompt("Enter username:");
+/* INPUT */
+const msgInput = document.getElementById("msg");
+
+/* LOGIN + REGISTER USER */
+window.onload=async()=>{
+user = prompt("Enter username:");
 if(!user) user="User"+Math.floor(Math.random()*9999);
+
+await registerUser();
 };
+
+/* REGISTER USER TO BACKEND */
+async function registerUser(){
+try{
+await fetch(URL,{
+method:"POST",
+body:JSON.stringify({
+type:"register",
+name:user,
+time:new Date().toISOString()
+})
+});
+}catch(e){
+console.log("Register failed",e);
+}
+}
 
 /* TOGGLE USERS */
 function toggleUsers(){
@@ -252,8 +274,8 @@ try{
 const res=await fetch(URL+"?t="+Date.now());
 const data=await res.json();
 
-messages=Array.isArray(data.messages)?data.messages:[];
-users=Array.isArray(data.users)?data.users:[];
+messages = Array.isArray(data.messages) ? data.messages : [];
+users = Array.isArray(data.users) ? data.users : [];
 
 renderUsers();
 renderMessages();
@@ -262,18 +284,17 @@ handleNotify();
 document.getElementById("globalStatus").classList.add("online");
 
 }catch(e){
+console.log(e);
 document.getElementById("globalStatus").classList.remove("online");
 }
 }
 
-/* USERS FIXED */
+/* USERS */
 function renderUsers(){
-
 const now=Date.now();
 let html="";
 
 users.forEach(u=>{
-
 let name="",lastSeen="";
 
 if(Array.isArray(u)){
@@ -286,28 +307,17 @@ name=u;
 if(!name) return;
 
 let online=false;
-
 const t=new Date(lastSeen).getTime();
 if(!isNaN(t)){
-online=(now-t)<10000;
+online=(now-t)<15000;
 }
 
-/* FILTER */
 if(!showAll && !online) return;
 
 html+=`
 <div class="user" onclick="openChat('${name}')">
-
 <span>• ${name}</span>
-
-<span style="
-width:10px;
-height:10px;
-border-radius:50%;
-background:${online?'#25D366':'red'};
-${online?'animation:blink 1s infinite;':''}
-"></span>
-
+<span class="status-dot ${online?'online':''}"></span>
 </div>`;
 });
 
@@ -337,7 +347,6 @@ const chat=messages.filter(m=>
 );
 
 box.innerHTML=chat.map(m=>{
-
 const mine=m[0]===user;
 const seen=m[4];
 
@@ -345,7 +354,7 @@ return `
 <div class="msg ${mine?'sent':'received'}">
 <div>${m[2]}</div>
 <div class="time">
-${new Date(m[3]).toLocaleTimeString()}
+${new Date(m[3]).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
 ${mine?(seen?'✓✓':'✓'):''}
 </div>
 </div>`;
@@ -354,25 +363,24 @@ ${mine?(seen?'✓✓':'✓'):''}
 box.scrollTop=box.scrollHeight;
 }
 
-/* SEND */
+/* SEND MESSAGE */
 document.getElementById("form").onsubmit=async(e)=>{
 e.preventDefault();
 
-if(!active)return alert("Select user");
+if(!active) return alert("Select user");
 
 await fetch(URL,{
 method:"POST",
-mode:"no-cors",
 body:JSON.stringify({
 type:"message",
 sender:user,
 receiver:active,
-message:msg.value,
+message:msgInput.value,
 time:new Date().toISOString()
 })
 });
 
-msg.value="";
+msgInput.value="";
 };
 
 /* VOICE */
@@ -400,7 +408,7 @@ recognition.start();
 recording=true;
 
 recognition.onresult=(e)=>{
-msg.value=e.results[0][0].transcript;
+msgInput.value=e.results[0][0].transcript;
 };
 
 }else{
@@ -415,7 +423,6 @@ recording=false;
 
 /* NOTIFICATIONS */
 function handleNotify(){
-
 if(messages.length>lastCount){
 
 const last=messages[messages.length-1];
@@ -442,7 +449,7 @@ new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play();
 }
 
 /* LOOP */
-setInterval(load,1000);
+setInterval(load,1500);
 load();
 </script>
 
