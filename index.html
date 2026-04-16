@@ -92,22 +92,10 @@ border-radius:14px;
 font-size:14px;
 }
 
-.sent{
-align-self:flex-end;
-background:var(--primary);
-color:#fff;
-}
+.sent{align-self:flex-end;background:var(--primary);color:#fff;}
+.received{align-self:flex-start;background:var(--received);}
 
-.received{
-align-self:flex-start;
-background:var(--received);
-}
-
-.msg-info{
-font-size:10px;
-opacity:0.6;
-margin-bottom:2px;
-}
+.msg-info{font-size:10px;opacity:0.6;margin-bottom:2px;}
 
 .time{
 font-size:10px;
@@ -116,12 +104,7 @@ margin-top:4px;
 text-align:right;
 }
 
-.read{
-font-size:11px;
-margin-left:6px;
-color:#cfd8dc;
-}
-
+.read{font-size:11px;margin-left:6px;color:#cfd8dc;}
 .read.seen{color:#00ff90;}
 
 .typing{
@@ -167,10 +150,9 @@ background:#eee;
 border:none;
 }
 
-.voice-active{
-background:red !important;
-color:#fff;
-}
+.voice-active{background:red !important;color:#fff;}
+
+.hidden{display:none;}
 </style>
 </head>
 
@@ -194,17 +176,19 @@ color:#fff;
 </header>
 
 <div id="chat-box" class="chat-box"></div>
-
 <div id="typing" class="typing"></div>
 
 <form id="form" class="input-area">
-<input id="username" placeholder="Username" required maxlength="15">
+
+<!-- hidden username input -->
+<input id="username" class="hidden">
 
 <div class="input-row">
 <input id="msg" placeholder="Message..." required>
 <button type="button" id="voiceBtn" class="voice-btn">🎤</button>
 <button type="submit" class="send-btn">➤</button>
 </div>
+
 </form>
 
 </div>
@@ -213,32 +197,39 @@ color:#fff;
 <script>
 const URL = "https://script.google.com/macros/s/AKfycbwzI4mCPxny_U_9ZQLTgI_SYXvKp0sA_vUMCdjKSgjci0iT7CdKTMiMh9NV7E-1K6gKmA/exec";
 
+/* DOM FIX */
 const chatBox = document.getElementById("chat-box");
 const usersBox = document.getElementById("users");
 const typingBox = document.getElementById("typing");
 const statusText = document.getElementById("status-text");
+const username = document.getElementById("username");
+const msg = document.getElementById("msg");
+const form = document.getElementById("form");
+const voiceBtn = document.getElementById("voiceBtn");
 
 let lastCount = 0;
-
-/* ✅ LOCK USERNAME */
 let lockedUsername = null;
 
-username.addEventListener("change", () => {
-if(!lockedUsername && username.value.trim() !== ""){
-lockedUsername = username.value.trim();
-username.disabled = true;
-}
-});
+/* ✅ ASK USERNAME ON LOAD */
+window.onload = () => {
+let name = "";
 
-/* TIME FIX (for sheet + fallback) */
+while(!name){
+name = prompt("Enter your username:");
+if(name) name = name.trim();
+}
+
+lockedUsername = name;
+username.value = name;
+};
+
+/* TIME */
 function formatTime(t){
 if(!t) return "";
-
 const d = new Date(t);
 
 let h = d.getHours();
 let m = d.getMinutes();
-
 const ampm = h >= 12 ? "pm" : "am";
 
 h = h % 12 || 12;
@@ -273,10 +264,8 @@ statusText.innerText = "Reconnecting...";
 
 /* MESSAGES */
 function renderMessages(messages){
-const me = lockedUsername || username.value;
-
 chatBox.innerHTML = messages.map(r=>{
-const mine = r[0] === me;
+const mine = r[0] === lockedUsername;
 const read = r[3];
 
 return `
@@ -300,19 +289,12 @@ usersBox.innerHTML = users.map(u=>`<div class="user">${u}</div>`).join('');
 
 /* TYPING */
 function renderTyping(list){
-const me = lockedUsername || username.value;
-
-const filtered = list.filter(u => u !== me);
-
-if(filtered.length === 0){
-typingBox.innerText = "";
-return;
-}
+const filtered = list.filter(u => u !== lockedUsername);
 
 typingBox.innerText =
-filtered.length === 1
-? `${filtered[0]} is typing...`
-: `${filtered.join(", ")} are typing...`;
+filtered.length === 0 ? "" :
+filtered.length === 1 ? `${filtered[0]} is typing...` :
+`${filtered.join(", ")} are typing...`;
 }
 
 /* SEND */
@@ -324,7 +306,7 @@ method:"POST",
 mode:"no-cors",
 body:JSON.stringify({
 type:"message",
-name:lockedUsername || username.value,
+name:lockedUsername,
 message:msg.value,
 time:formatTime(new Date())
 })
@@ -344,7 +326,7 @@ method:"POST",
 mode:"no-cors",
 body:JSON.stringify({
 type:"typing",
-name:lockedUsername || username.value
+name:lockedUsername
 })
 });
 
@@ -354,22 +336,20 @@ method:"POST",
 mode:"no-cors",
 body:JSON.stringify({
 type:"typing-stop",
-name:lockedUsername || username.value
+name:lockedUsername
 })
 });
 },1500);
 });
 
-/* PRESENCE + READ */
+/* PRESENCE */
 setInterval(()=>{
-if(!username.value) return;
-
 fetch(URL,{
 method:"POST",
 mode:"no-cors",
 body:JSON.stringify({
 type:"presence",
-name:lockedUsername || username.value
+name:lockedUsername
 })
 });
 
@@ -378,7 +358,7 @@ method:"POST",
 mode:"no-cors",
 body:JSON.stringify({
 type:"read",
-name:lockedUsername || username.value
+name:lockedUsername
 })
 });
 
