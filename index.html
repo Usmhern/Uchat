@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>UChat Fixed</title>
+<title>UChat</title>
 
 <style>
 :root{
@@ -55,6 +55,7 @@ height:10px;
 border-radius:50%;
 background:red;
 }
+
 .status-dot.online{
 background:#25D366;
 }
@@ -200,6 +201,7 @@ if(!user) user="User"+Math.floor(Math.random()*9999);
 
 sendPresence();
 load();
+
 setInterval(load,1500);
 setInterval(sendPresence,3000);
 };
@@ -220,12 +222,12 @@ console.log(e);
 /* LOAD */
 async function load(){
 try{
-const res = await fetch(URL+"?t="+Date.now());
-const data = await res.json();
+const res=await fetch(URL+"?t="+Date.now());
+const data=await res.json();
 
-messages = data.messages || [];
-users = data.users || [];
-typing = data.typing || [];
+messages=data.messages||[];
+users=data.users||[];
+typing=data.typing||[];
 
 renderUsers();
 renderMessages();
@@ -242,8 +244,9 @@ document.getElementById("globalStatus").classList.remove("online");
 function renderUsers(){
 const now=Date.now();
 
-document.getElementById("users").innerHTML =
+document.getElementById("users").innerHTML=
 users.map(u=>{
+
 let name=u[0];
 let lastSeen=u[1];
 
@@ -300,7 +303,7 @@ box.scrollTop=box.scrollHeight;
 document.getElementById("form").onsubmit=async(e)=>{
 e.preventDefault();
 
-if(!active) return alert("Select user");
+if(!active)return alert("Select user");
 
 await send({
 type:"message",
@@ -311,11 +314,22 @@ time:new Date().toISOString()
 });
 
 msg.value="";
-
 sendTyping(false);
 };
 
-/* TYPING SYSTEM */
+/* TYPING */
+let typingTimer;
+
+msg.addEventListener("input",()=>{
+
+sendTyping(true);
+
+clearTimeout(typingTimer);
+typingTimer=setTimeout(()=>{
+sendTyping(false);
+},1200);
+});
+
 function sendTyping(state){
 send({
 type:"typing",
@@ -325,26 +339,18 @@ time:new Date().toISOString()
 });
 }
 
-msg.addEventListener("input",()=>{
-sendTyping(true);
-
-clearTimeout(window.typingTimer);
-window.typingTimer=setTimeout(()=>{
-sendTyping(false);
-},1000);
-});
-
 /* RENDER TYPING */
 function renderTyping(){
+
 const box=document.getElementById("typingBox");
 
-if(!active) return box.innerHTML="";
+if(!active)return;
 
 const t = typing.find(x =>
-x[0] !== user && x[1] === "true"
+x[0] !== user && x[1] === true
 );
 
-box.innerHTML = t ? `${t[0]} is typing...` : "";
+box.innerText = t ? `${t[0]} is typing...` : "";
 }
 
 /* PRESENCE */
@@ -358,7 +364,7 @@ time:new Date().toISOString()
 
 /* NOTIFICATIONS */
 function notify(){
-if(messages.length > lastCount){
+if(messages.length>lastCount){
 const last=messages[messages.length-1];
 
 if(last && last[1]===user){
@@ -374,14 +380,15 @@ const div=document.createElement("div");
 div.className="popup";
 div.innerText=`📩 ${sender}: ${msg}`;
 document.body.appendChild(div);
+
 setTimeout(()=>div.remove(),2500);
 }
 
 /* LOOP */
 setInterval(()=>{
-renderMessages();
+load();
 notify();
-},1000);
+},1500);
 
 </script>
 
