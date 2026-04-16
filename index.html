@@ -67,7 +67,7 @@ justify-content:space-between;
 align-items:center;
 }
 
-.status-online{color:#0f0;font-size:12px;}
+.status-online{color:#25D366;font-size:12px;}
 .status-offline{color:red;font-size:12px;}
 
 .chat-box{
@@ -95,11 +95,9 @@ word-wrap:break-word;
 font-size:10px;
 opacity:0.7;
 margin-top:4px;
-text-align:right;
 display:flex;
 justify-content:flex-end;
 gap:5px;
-align-items:center;
 }
 
 .input-area{
@@ -125,9 +123,7 @@ color:#fff;
 border-radius:50%;
 }
 
-.voice-btn{
-width:45px;
-}
+.voice-btn{width:45px;}
 
 .popup{
 position:fixed;
@@ -140,6 +136,12 @@ padding:10px 15px;
 border-radius:10px;
 z-index:9999;
 font-size:13px;
+}
+
+#typingBox{
+font-size:12px;
+color:#555;
+padding:5px 10px;
 }
 </style>
 </head>
@@ -162,11 +164,11 @@ font-size:13px;
 <span id="status">...</span>
 </header>
 
+<div id="typingBox"></div>
 <div id="chatBox" class="chat-box"></div>
 
 <form id="form" class="input-area">
 <input id="msg" placeholder="Message..." required>
-
 <button type="button" class="voice-btn">🎤</button>
 <button type="submit">➤</button>
 </form>
@@ -188,7 +190,7 @@ user = prompt("Enter username:");
 if(!user) user = "User"+Math.floor(Math.random()*9999);
 };
 
-/* FETCH */
+/* LOAD */
 async function load(){
 try{
 const res = await fetch(URL);
@@ -198,6 +200,7 @@ allMessages = data.messages || [];
 
 renderUsers(data.users || []);
 renderMessages();
+renderTyping(data.typing || []);
 handleNotifications(data.messages || []);
 
 document.getElementById("status").innerText="Live";
@@ -209,14 +212,14 @@ document.getElementById("status").className="status-offline";
 }
 }
 
-/* USERS (ONLINE/OFFLINE + FIX CUT NAME) */
+/* USERS */
 function renderUsers(users){
 
 const now = Date.now();
 
 users = users.map(u=>{
 if(Array.isArray(u)) return u;
-return [u, null];
+return [u,null];
 });
 
 document.getElementById("users").innerHTML =
@@ -227,13 +230,13 @@ const lastSeen = u[1];
 
 let online = false;
 if(lastSeen){
-online = (now - new Date(lastSeen).getTime()) < 10000;
+online = (now - new Date(lastSeen).getTime()) < 8000;
 }
 
 return `
 <div class="user" onclick="openChat('${name}')">
 <span>• ${name}</span>
-<span style="color:${online?'#0f0':'red'}">●</span>
+<span style="color:${online?'#25D366':'#999'}">●</span>
 </div>`;
 }).join('');
 }
@@ -242,16 +245,15 @@ return `
 function openChat(u){
 active = u;
 document.getElementById("chatTitle").innerText = u;
-renderMessages();
 }
 
-/* MESSAGES + ✓ ✓✓ */
+/* MESSAGES */
 function renderMessages(){
 
 const chatBox = document.getElementById("chatBox");
 
 if(!active){
-chatBox.innerHTML = "<center style='padding:20px'>Select user</center>";
+chatBox.innerHTML="<center style='padding:20px'>Select user</center>";
 return;
 }
 
@@ -268,10 +270,9 @@ const read = m[4];
 return `
 <div class="msg ${mine?'sent':'received'}">
 <div>${m[2]}</div>
-
 <div class="time">
 ${new Date(m[3]).toLocaleTimeString()}
-${mine ? (read ? "✓✓" : "✓") : ""}
+${mine ? (read?'✓✓':'✓') : ''}
 </div>
 </div>`;
 }).join('');
@@ -300,26 +301,65 @@ time:new Date().toISOString()
 msg.value="";
 };
 
+/* TYPING */
+let typingTimeout;
+
+msg.addEventListener("input",()=>{
+
+fetch(URL,{
+method:"POST",
+mode:"no-cors",
+body:JSON.stringify({
+type:"typing",
+name:user
+})
+});
+
+clearTimeout(typingTimeout);
+
+typingTimeout=setTimeout(()=>{
+fetch(URL,{
+method:"POST",
+mode:"no-cors",
+body:JSON.stringify({
+type:"typing-stop",
+name:user
+})
+});
+},1200);
+
+});
+
+/* RENDER TYPING */
+function renderTyping(list){
+
+const box=document.getElementById("typingBox");
+
+const t=list.filter(x=>x!==user);
+
+box.innerText = t.length ? `${t.join(", ")} is typing...` : "";
+}
+
 /* NOTIFICATIONS */
 function handleNotifications(messages){
 
 if(!Array.isArray(messages)) return;
 
 if(messages.length > lastCount){
-const last = messages[messages.length-1];
+const last=messages[messages.length-1];
 
-if(last && last[1] === user){
-showPopup(last[0], last[2]);
+if(last[1]===user){
+showPopup(last[0],last[2]);
 }
 
-lastCount = messages.length;
+lastCount=messages.length;
 }
 }
 
 /* POPUP */
 function showPopup(sender,msg){
 
-const div = document.createElement("div");
+const div=document.createElement("div");
 div.className="popup";
 div.innerHTML=`📩 ${sender}: ${msg}`;
 document.body.appendChild(div);
@@ -327,12 +367,46 @@ document.body.appendChild(div);
 setTimeout(()=>div.remove(),3000);
 
 try{
-const audio = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
+const audio=new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
 audio.play();
 }catch(e){}
 }
 
-/* PRESENCE (ONLINE SYSTEM) */
+/* VOICE NOTE (WHATSAPP STYLE SOUND) */
+let recognition;
+let recording=false;
+
+document.querySelector(".voice-btn").onclick=()=>{
+
+if(!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)){
+alert("Not supported");
+return;
+}
+
+if(!recording){
+
+new Audio("https://www.myinstants.com/media/sounds/whatsapp-audio-start.mp3").play().catch(()=>{});
+
+recognition=new (window.SpeechRecognition||window.webkitSpeechRecognition)();
+recognition.lang="en-US";
+recognition.start();
+
+recording=true;
+
+recognition.onresult=(e)=>{
+msg.value=e.results[0][0].transcript;
+};
+
+}else{
+
+new Audio("https://www.myinstants.com/media/sounds/whatsapp-audio-end.mp3").play().catch(()=>{});
+
+recognition.stop();
+recording=false;
+}
+};
+
+/* PRESENCE */
 setInterval(()=>{
 fetch(URL,{
 method:"POST",
@@ -342,9 +416,9 @@ type:"presence",
 name:user
 })
 });
-},5000);
+},3000);
 
-/* MAIN LOOP */
+/* LOOP */
 setInterval(load,3000);
 load();
 </script>
