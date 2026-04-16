@@ -12,21 +12,6 @@
 --read:#00c853;
 }
 
-  .user{
-padding:10px;
-border-bottom:1px solid #1e293b;
-cursor:pointer;
-}
-
-.user:hover{
-background:#1e293b;
-}
-
-header h3::after{
-content:" •";
-color:#0f0;
-font-size:12px;
-}
 *{margin:0;padding:0;box-sizing:border-box;}
 
 body{
@@ -56,8 +41,13 @@ font-size:12px;
 }
 
 .user{
-padding:5px;
+padding:8px;
 border-bottom:1px solid #222;
+cursor:pointer;
+}
+
+.user:hover{
+background:#1e293b;
 }
 
 .chat-main{
@@ -74,21 +64,6 @@ display:flex;
 justify-content:space-between;
 align-items:center;
 }
-
-#status-container{
-display:flex;
-align-items:center;
-font-size:12px;
-}
-
-#status-dot{
-width:10px;height:10px;
-border-radius:50%;
-background:red;
-margin-right:6px;
-}
-
-.online #status-dot{background:#0f0;}
 
 .chat-box{
 flex:1;
@@ -111,25 +86,11 @@ box-shadow:2px 0px 4px black;
 .sent{align-self:flex-end;background:#052;color:#fff;}
 .received{align-self:flex-start;background:var(--received);}
 
-.msg-info{font-size:10px;opacity:0.6;margin-bottom:2px;}
-
 .time{
 font-size:10px;
 opacity:0.7;
 margin-top:4px;
 text-align:right;
-}
-
-.read{font-size:11px;margin-left:6px;color:#cfd8dc;}
-.read.seen{color:#fff;}
-
-.typing{
-font-size:12px;
-font-style:italic;
-color:navy;
-  background:#ffff;
-padding:6px 10px;
-height:18px;
 }
 
 .input-area{
@@ -161,15 +122,6 @@ border:none;
 color:#fff;
 }
 
-.voice-btn{
-width:40px;height:40px;
-border-radius:50%;
-background:#eee;
-border:none;
-}
-
-.voice-active{background:red !important;color:#fff;}
-
 .hidden{display:none;}
 </style>
 </head>
@@ -180,30 +132,23 @@ border:none;
 
 <div class="sidebar">
 <h4 style="color:#0bf">USERS</h4>
-<div id="users"> </div>
+<div id="users"></div>
 </div>
 
 <div class="chat-main">
 
 <header>
-<h3>UChat</h3>
-<div id="status-container">
-<div id="status-dot"></div>
-<span id="status-text">Connecting...</span>
-</div>
+<h3 id="chat-title">UChat</h3>
+<span id="status">Connecting...</span>
 </header>
 
 <div id="chat-box" class="chat-box"></div>
-<div id="typing" class="typing"></div>
 
 <form id="form" class="input-area">
-
-<!-- hidden username input -->
 <input id="username" class="hidden">
 
 <div class="input-row">
 <input id="msg" placeholder="Message..." required>
-<button type="button" id="voiceBtn" class="voice-btn">🎤</button>
 <button type="submit" class="send-btn">➤</button>
 </div>
 
@@ -218,25 +163,33 @@ const URL = "https://script.google.com/macros/s/AKfycbwzI4mCPxny_U_9ZQLTgI_SYXvK
 /* DOM */
 const chatBox = document.getElementById("chat-box");
 const usersBox = document.getElementById("users");
-const typingBox = document.getElementById("typing");
-const statusText = document.getElementById("status-text");
-const username = document.getElementById("username");
+const status = document.getElementById("status");
+const usernameInput = document.getElementById("username");
 const msg = document.getElementById("msg");
 const form = document.getElementById("form");
+const chatTitle = document.getElementById("chat-title");
 
 let currentUser = "";
-let activeChatUser = null;
+let activeUser = null;
 let allMessages = [];
 
 /* LOGIN */
 window.onload = () => {
-let name = "";
+let name="";
 while(!name){
 name = prompt("Enter your username:");
 if(name) name = name.trim();
 }
+
 currentUser = name;
-username.value = name;
+usernameInput.value = name;
+
+/* register user */
+fetch(URL,{
+method:"POST",
+mode:"no-cors",
+body:JSON.stringify({name})
+});
 };
 
 /* TIME */
@@ -244,9 +197,9 @@ function formatTime(t){
 const d = new Date(t);
 let h = d.getHours();
 let m = d.getMinutes();
-const ampm = h >= 12 ? "pm" : "am";
-h = h % 12 || 12;
-m = m < 10 ? "0" + m : m;
+const ampm = h>=12?"pm":"am";
+h = h%12 || 12;
+m = m<10?"0"+m:m;
 return `${h}:${m}${ampm}`;
 }
 
@@ -259,69 +212,63 @@ const data = await res.json();
 allMessages = data.messages || [];
 
 renderUsers(data.users || []);
-renderChat();
+renderMessages();
 
-document.body.classList.add("online");
-statusText.innerText = "Online";
+status.innerText = "Online";
 
-}catch(e){
-statusText.innerText = "Connecting...";
+}catch{
+status.innerText = "Reconnecting...";
 }
 }
 
-/* USERS LIST (CHAT LIST) */
+/* USERS */
 function renderUsers(users){
-const filtered = users.filter(u => u !== currentUser);
+const filtered = users.filter(u=>u!==currentUser);
 
-usersBox.innerHTML = filtered.map(u=>{
-return `
-<div class="user" onclick="openChat('${u}')">
-${u}
-</div>`;
-}).join('');
+usersBox.innerHTML = filtered.map(u=>`
+<div class="user" onclick="selectUser('${u}')">${u}</div>
+`).join('');
 }
 
-/* OPEN CHAT */
-function openChat(user){
-activeChatUser = user;
-renderChat();
+/* SELECT CHAT */
+function selectUser(u){
+activeUser = u;
+chatTitle.innerText = u;
+renderMessages();
 }
 
-/* RENDER CHAT */
-function renderChat(){
-if(!activeChatUser){
+/* MESSAGES */
+function renderMessages(){
+if(!activeUser){
 chatBox.innerHTML = "<center>Select a user</center>";
 return;
 }
 
 const msgs = allMessages.filter(m=>{
 return (
-(m[0] === currentUser && m[1] === activeChatUser) ||
-(m[0] === activeChatUser && m[1] === currentUser)
+(m[0]===currentUser && m[1]===activeUser) ||
+(m[0]===activeUser && m[1]===currentUser)
 );
 });
 
 chatBox.innerHTML = msgs.map(r=>{
-const mine = r[0] === currentUser;
+const mine = r[0]===currentUser;
 
 return `
 <div class="msg ${mine?'sent':'received'}">
 <div>${r[2]}</div>
-<div class="time">
-${formatTime(r[3])}
-<span class="read">${mine ? '✓✓' : ''}</span>
-</div>
+<div class="time">${formatTime(r[3])}</div>
 </div>`;
 }).join('');
 
 chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-/* SEND MESSAGE */
-form.onsubmit = async (e)=>{
+/* SEND */
+form.onsubmit = async(e)=>{
 e.preventDefault();
 
-if(!activeChatUser){
+if(!activeUser){
 alert("Select a user first");
 return;
 }
@@ -332,7 +279,7 @@ mode:"no-cors",
 body:JSON.stringify({
 type:"message",
 sender:currentUser,
-receiver:activeChatUser,
+receiver:activeUser,
 message:msg.value,
 time:new Date().toISOString()
 })
@@ -344,15 +291,7 @@ msg.value="";
 /* AUTO REFRESH */
 setInterval(fetchMessages,1000);
 fetchMessages();
-
-  function addUser(name){
-  const sheet = SpreadsheetApp.getActive().getSheetByName("users");
-  const data = sheet.getRange(1,1,sheet.getLastRow()).getValues().flat();
-
-  if(!data.includes(name)){
-    sheet.appendRow([name]);
-  }
-  }
 </script>
+
 </body>
 </html>
