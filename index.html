@@ -9,7 +9,6 @@
 :root{
 --primary:#036;
 --received:#e4e6eb;
---read:#00c853;
 }
 
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -46,7 +45,6 @@ border-bottom:1px solid #222;
 cursor:pointer;
 display:flex;
 justify-content:space-between;
-align-items:center;
 white-space:nowrap;
 overflow:hidden;
 text-overflow:ellipsis;
@@ -85,7 +83,7 @@ max-width:75%;
 padding:10px;
 border-radius:15px 0 15px 0;
 font-size:14px;
-word-wrap:break-word;
+word-break:break-word;
 }
 
 .sent{align-self:flex-end;background:#052;color:#fff;}
@@ -169,6 +167,7 @@ padding:5px 10px;
 
 <form id="form" class="input-area">
 <input id="msg" placeholder="Message..." required>
+
 <button type="button" class="voice-btn">🎤</button>
 <button type="submit">➤</button>
 </form>
@@ -179,29 +178,29 @@ padding:5px 10px;
 <script>
 const URL = "https://script.google.com/macros/s/AKfycbyYCUdPsi0Ck5Rb90bM0SDfzwpziPZ_whuptr2WxJuHAKfXmPZ2QGVCP32Vs9LXe5HCFw/exec";
 
-let user = "";
-let active = null;
-let lastCount = 0;
-let allMessages = [];
+let user="";
+let active=null;
+let allMessages=[];
+let lastCount=0;
 
 /* LOGIN */
-window.onload = ()=>{
-user = prompt("Enter username:");
-if(!user) user = "User"+Math.floor(Math.random()*9999);
+window.onload=()=>{
+user=prompt("Enter username:");
+if(!user) user="User"+Math.floor(Math.random()*9999);
 };
 
 /* LOAD */
 async function load(){
 try{
-const res = await fetch(URL);
-const data = await res.json();
+const res=await fetch(URL);
+const data=await res.json();
 
-allMessages = data.messages || [];
+allMessages=data.messages||[];
 
-renderUsers(data.users || []);
+renderUsers(data.users||[]);
 renderMessages();
-renderTyping(data.typing || []);
-handleNotifications(data.messages || []);
+renderTyping(data.typing||[]);
+handleNotifications(data.messages||[]);
 
 document.getElementById("status").innerText="Live";
 document.getElementById("status").className="status-online";
@@ -212,83 +211,81 @@ document.getElementById("status").className="status-offline";
 }
 }
 
-/* USERS */
+/* USERS ONLINE FIX */
 function renderUsers(users){
 
-const now = Date.now();
+const now=Date.now();
 
-users = users.map(u=>{
+users=users.map(u=>{
 if(Array.isArray(u)) return u;
-return [u, ""];
+return [u,""];
 });
 
-document.getElementById("users").innerHTML =
+document.getElementById("users").innerHTML=
 users.map(u=>{
 
-const name = u[0];
-const lastSeenRaw = u[1];
+const name=u[0];
+const lastSeen=u[1];
 
-let isOnline = false;
+let online=false;
 
-if(lastSeenRaw){
-const lastSeen = new Date(lastSeenRaw).getTime();
-const diff = now - lastSeen;
-
-// 🔥 IMPORTANT: increase tolerance for real Google Sheets delay
-isOnline = diff < 15000; // 15 seconds
+if(lastSeen){
+const t=new Date(lastSeen).getTime();
+online=(now-t)<30000;
 }
 
 return `
 <div class="user" onclick="openChat('${name}')">
 <span>• ${name}</span>
-<span style="color:${isOnline ? '#25D366' : '#999'}">●</span>
+<span style="color:${online?'#25D366':'#999'}">●</span>
 </div>`;
 }).join('');
 }
+
 /* OPEN CHAT */
 function openChat(u){
-active = u;
-document.getElementById("chatTitle").innerText = u;
+active=u;
+document.getElementById("chatTitle").innerText=u;
 }
 
-/* MESSAGES */
+/* MESSAGES + ✓✓ */
 function renderMessages(){
 
-const chatBox = document.getElementById("chatBox");
+const chatBox=document.getElementById("chatBox");
 
 if(!active){
 chatBox.innerHTML="<center style='padding:20px'>Select user</center>";
 return;
 }
 
-const msgs = allMessages.filter(m=>
-(m[0]==user && m[1]==active) ||
-(m[0]==active && m[1]==user)
+const msgs=allMessages.filter(m=>
+(m[0]==user&&m[1]==active)||
+(m[0]==active&&m[1]==user)
 );
 
-chatBox.innerHTML = msgs.map(m=>{
+chatBox.innerHTML=msgs.map(m=>{
 
-const mine = m[0]===user;
-const read = m[4];
+const mine=m[0]===user;
+const read=m[4];
 
 return `
 <div class="msg ${mine?'sent':'received'}">
 <div>${m[2]}</div>
 <div class="time">
 ${new Date(m[3]).toLocaleTimeString()}
-${mine ? (read?'✓✓':'✓') : ''}
+${mine?(read?'✓✓':'✓'):''}
 </div>
 </div>`;
 }).join('');
 
-chatBox.scrollTop = chatBox.scrollHeight;
+chatBox.scrollTop=chatBox.scrollHeight;
 }
 
 /* SEND */
-document.getElementById("form").onsubmit = async(e)=>{
+document.getElementById("form").onsubmit=async(e)=>{
 e.preventDefault();
 
-if(!active) return alert("Select user");
+if(!active)return alert("Select user");
 
 await fetch(URL,{
 method:"POST",
@@ -305,7 +302,7 @@ time:new Date().toISOString()
 msg.value="";
 };
 
-/* TYPING */
+/* TYPING FIX (NO STUCK) */
 let typingTimeout;
 
 msg.addEventListener("input",()=>{
@@ -322,6 +319,7 @@ name:user
 clearTimeout(typingTimeout);
 
 typingTimeout=setTimeout(()=>{
+
 fetch(URL,{
 method:"POST",
 mode:"no-cors",
@@ -330,29 +328,34 @@ type:"typing-stop",
 name:user
 })
 });
+
 },1200);
 
 });
 
-/* RENDER TYPING */
+/* TYPING DISPLAY */
 function renderTyping(list){
 
 const box=document.getElementById("typingBox");
 
-const t=list.filter(x=>x!==user);
+if(!Array.isArray(list))return;
 
-box.innerText = t.length ? `${t.join(", ")} is typing...` : "";
+const typing=list.filter(x=>x[1]===true).map(x=>x[0]);
+
+const filtered=typing.filter(x=>x!==user);
+
+box.innerText=filtered.length?`${filtered.join(", ")} is typing...`:"";
 }
 
-/* NOTIFICATIONS */
+/* NOTIFICATION */
 function handleNotifications(messages){
 
-if(!Array.isArray(messages)) return;
+if(!Array.isArray(messages))return;
 
-if(messages.length > lastCount){
+if(messages.length>lastCount){
 const last=messages[messages.length-1];
 
-if(last[1]===user){
+if(last&&last[1]===user){
 showPopup(last[0],last[2]);
 }
 
@@ -368,21 +371,20 @@ div.className="popup";
 div.innerHTML=`📩 ${sender}: ${msg}`;
 document.body.appendChild(div);
 
-setTimeout(()=>div.remove(),10000);
+setTimeout(()=>div.remove(),3000);
 
 try{
-const audio=new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
-audio.play();
+new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play();
 }catch(e){}
 }
 
-/* VOICE NOTE (WHATSAPP STYLE SOUND) */
+/* VOICE NOTE */
 let recognition;
 let recording=false;
 
 document.querySelector(".voice-btn").onclick=()=>{
 
-if(!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)){
+if(!('webkitSpeechRecognition'in window||'SpeechRecognition'in window)){
 alert("Not supported");
 return;
 }
@@ -420,10 +422,10 @@ type:"presence",
 name:user
 })
 });
-},1000);
+},3000);
 
 /* LOOP */
-setInterval(load,1000);
+setInterval(load,3000);
 load();
 </script>
 
