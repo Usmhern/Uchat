@@ -344,6 +344,15 @@ msg.value="";
 /* AUTO REFRESH */
 setInterval(fetchMessages,1000);
 fetchMessages();
+
+  function addUser(name){
+  const sheet = SpreadsheetApp.getActive().getSheetByName("users");
+  const data = sheet.getRange(1,1,sheet.getLastRow()).getValues().flat();
+
+  if(!data.includes(name)){
+    sheet.appendRow([name]);
+  }
+  }
 </script>
 </body>
 </html>
