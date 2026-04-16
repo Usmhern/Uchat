@@ -49,6 +49,16 @@ justify-content:space-between;
 align-items:center;
 }
 
+.status-dot{
+width:10px;
+height:10px;
+border-radius:50%;
+background:red;
+}
+.status-dot.online{
+background:#25D366;
+}
+
 /* CHAT */
 .chat-main{
 flex:1;
@@ -65,18 +75,6 @@ justify-content:space-between;
 align-items:center;
 }
 
-.status-dot{
-width:10px;
-height:10px;
-border-radius:50%;
-background:red;
-}
-
-.status-dot.online{
-background:#25D366;
-}
-
-/* CHAT BOX */
 .chat-box{
 flex:1;
 overflow-y:auto;
@@ -104,7 +102,6 @@ opacity:0.7;
 margin-top:4px;
 display:flex;
 justify-content:flex-end;
-gap:5px;
 }
 
 /* INPUT */
@@ -132,6 +129,13 @@ background:#036;
 color:#fff;
 }
 
+/* TYPING */
+#typingBox{
+padding:5px 10px;
+font-size:12px;
+color:#666;
+}
+
 /* POPUP */
 .popup{
 position:fixed;
@@ -140,9 +144,10 @@ left:50%;
 transform:translateX(-50%);
 background:#036;
 color:#fff;
-padding:10px 15px;
+padding:10px;
 border-radius:10px;
 font-size:13px;
+z-index:999;
 }
 </style>
 </head>
@@ -162,9 +167,10 @@ font-size:13px;
 
 <header>
 <h3 id="chatTitle">UChat</h3>
-<span id="status" class="status-dot"></span>
+<span class="status-dot" id="globalStatus"></span>
 </header>
 
+<div id="typingBox"></div>
 <div id="chatBox" class="chat-box"></div>
 
 <form id="form" class="input-area">
@@ -175,7 +181,6 @@ font-size:13px;
 </div>
 </div>
 
-
 <script>
 const URL="https://script.google.com/macros/s/AKfycbyYCUdPsi0Ck5Rb90bM0SDfzwpziPZ_whuptr2WxJuHAKfXmPZ2QGVCP32Vs9LXe5HCFw/exec";
 
@@ -183,10 +188,10 @@ let user="";
 let active=null;
 let messages=[];
 let users=[];
-let typingUsers={};
+let typing=[];
 let lastCount=0;
 
-const msg = document.getElementById("msg");
+const msg=document.getElementById("msg");
 
 /* LOGIN */
 window.onload=()=>{
@@ -194,12 +199,12 @@ user = prompt("Enter username:");
 if(!user) user="User"+Math.floor(Math.random()*9999);
 
 sendPresence();
-setInterval(load, 1200);
-setInterval(sendPresence, 3000);
 load();
+setInterval(load,1500);
+setInterval(sendPresence,3000);
 };
 
-/* SAFE POST */
+/* SAFE SEND */
 async function send(data){
 try{
 await fetch(URL,{
@@ -212,48 +217,45 @@ console.log(e);
 }
 }
 
-/* LOAD DATA */
+/* LOAD */
 async function load(){
 try{
-const res = await fetch(URL + "?t=" + Date.now());
+const res = await fetch(URL+"?t="+Date.now());
 const data = await res.json();
 
 messages = data.messages || [];
 users = data.users || [];
-typingUsers = data.typing || [];
+typing = data.typing || [];
 
 renderUsers();
 renderMessages();
 renderTyping();
 
+document.getElementById("globalStatus").classList.add("online");
+
 }catch(e){
-console.log("Load error",e);
+document.getElementById("globalStatus").classList.remove("online");
 }
 }
 
 /* USERS */
 function renderUsers(){
-
-const now = Date.now();
+const now=Date.now();
 
 document.getElementById("users").innerHTML =
 users.map(u=>{
+let name=u[0];
+let lastSeen=u[1];
 
-let name = u[0];
-let lastSeen = u[1];
-
-let online = false;
-
+let online=false;
 if(lastSeen){
-let t = new Date(lastSeen).getTime();
-if(!isNaN(t)){
-online = (now - t) < 10000;
-}
+let t=new Date(lastSeen).getTime();
+if(!isNaN(t)) online=(now-t)<10000;
 }
 
 return `
 <div class="user" onclick="openChat('${name}')">
-<span>• ${name}</span>
+<span>${name}</span>
 <span class="status-dot ${online?'online':''}"></span>
 </div>`;
 }).join('');
@@ -267,7 +269,6 @@ document.getElementById("chatTitle").innerText=u;
 
 /* MESSAGES */
 function renderMessages(){
-
 const box=document.getElementById("chatBox");
 
 if(!active){
@@ -275,33 +276,31 @@ box.innerHTML="<center style='padding:20px'>Select user</center>";
 return;
 }
 
-const chat = messages.filter(m=>
-(m[0]==user && m[1]==active) ||
-(m[0]==active && m[1]==user)
+const chat=messages.filter(m=>
+(m[0]==user&&m[1]==active)||
+(m[0]==active&&m[1]==user)
 );
 
-box.innerHTML = chat.map(m=>{
-const mine = m[0] === user;
-const read = m[4];
+box.innerHTML=chat.map(m=>{
+const mine=m[0]===user;
 
 return `
 <div class="msg ${mine?'sent':'received'}">
 <div>${m[2]}</div>
 <div class="time">
 ${new Date(m[3]).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}
-${mine?(read?'✓✓':'✓'):''}
 </div>
 </div>`;
 }).join('');
 
-box.scrollTop = box.scrollHeight;
+box.scrollTop=box.scrollHeight;
 }
 
 /* SEND MESSAGE */
 document.getElementById("form").onsubmit=async(e)=>{
 e.preventDefault();
 
-if(!active)return alert("Select user");
+if(!active) return alert("Select user");
 
 await send({
 type:"message",
@@ -313,13 +312,11 @@ time:new Date().toISOString()
 
 msg.value="";
 
-/* STOP TYPING AFTER SEND */
 sendTyping(false);
 };
 
-/* TYPING SYSTEM FIXED FOR YOUR SHEET */
+/* TYPING SYSTEM */
 function sendTyping(state){
-
 send({
 type:"typing",
 name:user,
@@ -328,13 +325,10 @@ time:new Date().toISOString()
 });
 }
 
-/* INPUT LISTENER */
 msg.addEventListener("input",()=>{
-
 sendTyping(true);
 
 clearTimeout(window.typingTimer);
-
 window.typingTimer=setTimeout(()=>{
 sendTyping(false);
 },1000);
@@ -342,26 +336,18 @@ sendTyping(false);
 
 /* RENDER TYPING */
 function renderTyping(){
+const box=document.getElementById("typingBox");
 
-const box = document.getElementById("typingBox");
+if(!active) return box.innerHTML="";
 
-if(!active){
-box.innerHTML="";
-return;
-}
-
-const typing = typingUsers.filter(t=>
-t[0] !== user && t[1] === "true"
+const t = typing.find(x =>
+x[0] !== user && x[1] === "true"
 );
 
-if(typing.length>0){
-box.innerHTML = `<i>${typing[0][0]} is typing...</i>`;
-}else{
-box.innerHTML="";
-}
+box.innerHTML = t ? `${t[0]} is typing...` : "";
 }
 
-/* PRESENCE (users sheet update) */
+/* PRESENCE */
 function sendPresence(){
 send({
 type:"presence",
@@ -371,29 +357,32 @@ time:new Date().toISOString()
 }
 
 /* NOTIFICATIONS */
-function handleNotifications(){
+function notify(){
 if(messages.length > lastCount){
-const last = messages[messages.length-1];
+const last=messages[messages.length-1];
 
-if(last && last[1] === user){
-showPopup(last[0], last[2]);
+if(last && last[1]===user){
+popup(last[0],last[2]);
 }
 
-lastCount = messages.length;
+lastCount=messages.length;
 }
 }
 
-function showPopup(sender,msg){
+function popup(sender,msg){
 const div=document.createElement("div");
 div.className="popup";
 div.innerText=`📩 ${sender}: ${msg}`;
 document.body.appendChild(div);
-
 setTimeout(()=>div.remove(),2500);
 }
 
 /* LOOP */
-setInterval(handleNotifications,1000);
+setInterval(()=>{
+renderMessages();
+notify();
+},1000);
+
 </script>
 
 </body>
