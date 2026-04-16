@@ -252,16 +252,37 @@ return [u,""];
 document.getElementById("users").innerHTML =
 users.map(u=>{
 
-const name = String(u[0] || "");
+const name = String(u[0] || "").trim();
 const lastSeen = u[1];
 
-let online = false;
+let isOnline = false;
 
+/* SAFE TIME CHECK */
 if(lastSeen){
 const t = new Date(lastSeen).getTime();
 if(!isNaN(t)){
-online = (now - t) < 15000;
+isOnline = (now - t) < 15000; // 15 seconds = online
 }
+}
+
+/* DOT COLOR */
+const dotColor = isOnline ? "#25D366" : "red";
+
+return `
+<div class="user" onclick="openChat('${name.replace(/'/g,"")}')">
+<span>• ${name}</span>
+<span style="
+width:10px;
+height:10px;
+border-radius:50%;
+display:inline-block;
+background:${dotColor};
+box-shadow:${isOnline ? "0 0 6px #25D366" : "none"};
+"></span>
+</div>
+`;
+
+}).join('');
 }
 
 return `
