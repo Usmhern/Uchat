@@ -9,6 +9,7 @@
 :root{
 --primary:#0084ff;
 --received:#e4e6eb;
+--read:#00c853;
 }
 
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -27,6 +28,25 @@ width:100%;
 max-width:430px;
 height:100dvh;
 background:#fff;
+display:flex;
+}
+
+.sidebar{
+width:120px;
+background:#0f172a;
+color:#fff;
+padding:10px;
+overflow-y:auto;
+font-size:12px;
+}
+
+.user{
+padding:5px;
+border-bottom:1px solid #222;
+}
+
+.chat-main{
+flex:1;
 display:flex;
 flex-direction:column;
 }
@@ -67,7 +87,7 @@ background:#fafafa;
 
 .msg{
 max-width:75%;
-padding:10px 12px;
+padding:10px;
 border-radius:14px;
 font-size:14px;
 }
@@ -76,25 +96,34 @@ font-size:14px;
 align-self:flex-end;
 background:var(--primary);
 color:#fff;
-border-bottom-right-radius:4px;
 }
 
 .received{
 align-self:flex-start;
 background:var(--received);
-border-bottom-left-radius:4px;
-}
-
-.msg-info{
-font-size:10px;
-opacity:0.6;
 }
 
 .time{
 font-size:10px;
-opacity:0.6;
+opacity:0.7;
 margin-top:4px;
 text-align:right;
+}
+
+.read{
+font-size:11px;
+margin-left:6px;
+color:#cfd8dc;
+}
+
+.read.seen{color:#00ff90;}
+
+.typing{
+font-size:12px;
+font-style:italic;
+color:#666;
+padding:6px 10px;
+height:18px;
 }
 
 .input-area{
@@ -118,25 +147,18 @@ outline:none;
 }
 
 .send-btn{
-width:42px;
-height:42px;
+width:42px;height:42px;
 border-radius:50%;
 background:#00a884;
-display:flex;
-justify-content:center;
-align-items:center;
-color:#fff;
-font-size:18px;
 border:none;
+color:#fff;
 }
 
 .voice-btn{
-width:42px;
-height:42px;
+width:42px;height:42px;
 border-radius:50%;
 background:#eee;
 border:none;
-font-size:18px;
 }
 
 .voice-active{
@@ -146,9 +168,16 @@ color:#fff;
 </style>
 </head>
 
-<body class="connecting">
+<body>
 
 <div class="chat-container">
+
+<div class="sidebar">
+<h4>Online</h4>
+<div id="users"></div>
+</div>
+
+<div class="chat-main">
 
 <header>
 <h3>UChat</h3>
@@ -160,24 +189,27 @@ color:#fff;
 
 <div id="chat-box" class="chat-box"></div>
 
+<div id="typing" class="typing"></div>
+
 <form id="form" class="input-area">
 <input id="username" placeholder="Username" required maxlength="15">
 
 <div class="input-row">
 <input id="msg" placeholder="Message..." required>
-
 <button type="button" id="voiceBtn" class="voice-btn">🎤</button>
-
 <button type="submit" class="send-btn">➤</button>
 </div>
 </form>
 
+</div>
 </div>
 
 <script>
 const URL = "https://script.google.com/macros/s/AKfycbwzI4mCPxny_U_9ZQLTgI_SYXvKp0sA_vUMCdjKSgjci0iT7CdKTMiMh9NV7E-1K6gKmA/exec";
 
 const chatBox = document.getElementById("chat-box");
+const usersBox = document.getElementById("users");
+const typingBox = document.getElementById("typing");
 const statusText = document.getElementById("status-text");
 
 let lastCount = 0;
@@ -203,11 +235,14 @@ try{
 const res = await fetch(URL);
 const data = await res.json();
 
-if(data.length > lastCount){
-render(data);
-lastCount = data.length;
+if(data.messages && data.messages.length > lastCount){
+renderMessages(data.messages);
+lastCount = data.messages.length;
 chatBox.scrollTop = chatBox.scrollHeight;
 }
+
+if(data.users) renderUsers(data.users);
+if(data.typing) renderTyping(data.typing);
 
 document.body.classList.add("online");
 statusText.innerText = "Live";
@@ -218,20 +253,47 @@ statusText.innerText = "Reconnecting...";
 }
 }
 
-/* RENDER */
-function render(data){
+/* MESSAGES */
+function renderMessages(messages){
 const me = username.value;
 
-chatBox.innerHTML = data.map(row=>{
-const mine = row[0] === me;
+chatBox.innerHTML = messages.map(r=>{
+const mine = r[0] === me;
+const read = r[3];
 
 return `
 <div class="msg ${mine?'sent':'received'}">
-<div class="msg-info">${row[0]}</div>
-${row[1]}
-<div class="time">${row[2]}</div>
+<div>${r[1]}</div>
+<div class="time">
+${r[2]}
+<span class="read ${read?'seen':''}">
+${mine ? (read ? '✓✓' : '✓') : ''}
+</span>
+</div>
 </div>`;
 }).join('');
+}
+
+/* USERS */
+function renderUsers(users){
+usersBox.innerHTML = users.map(u=>`<div class="user">${u}</div>`).join('');
+}
+
+/* TYPING */
+function renderTyping(list){
+const me = username.value;
+
+const filtered = list.filter(u => u !== me);
+
+if(filtered.length === 0){
+typingBox.innerText = "";
+return;
+}
+
+typingBox.innerText =
+filtered.length === 1
+? `${filtered[0]} is typing...`
+: `${filtered.join(", ")} are typing...`;
 }
 
 /* SEND */
@@ -242,6 +304,7 @@ await fetch(URL,{
 method:"POST",
 mode:"no-cors",
 body:JSON.stringify({
+type:"message",
 name:username.value,
 message:msg.value,
 time:getTime()
@@ -249,6 +312,92 @@ time:getTime()
 });
 
 msg.value="";
+};
+
+/* TYPING */
+let typingTimeout;
+
+msg.addEventListener("input",()=>{
+clearTimeout(typingTimeout);
+
+fetch(URL,{
+method:"POST",
+mode:"no-cors",
+body:JSON.stringify({
+type:"typing",
+name:username.value
+})
+});
+
+typingTimeout=setTimeout(()=>{
+fetch(URL,{
+method:"POST",
+mode:"no-cors",
+body:JSON.stringify({
+type:"typing-stop",
+name:username.value
+})
+});
+},1500);
+});
+
+/* PRESENCE + READ */
+setInterval(()=>{
+if(!username.value) return;
+
+fetch(URL,{
+method:"POST",
+mode:"no-cors",
+body:JSON.stringify({
+type:"presence",
+name:username.value
+})
+});
+
+fetch(URL,{
+method:"POST",
+mode:"no-cors",
+body:JSON.stringify({
+type:"read",
+name:username.value
+})
+});
+
+},5000);
+
+/* VOICE */
+let recognition;
+let isListening=false;
+
+voiceBtn.onclick=()=>{
+if(!('webkitSpeechRecognition'in window||'SpeechRecognition'in window)){
+alert("Not supported");
+return;
+}
+
+if(!isListening){
+recognition=new (window.SpeechRecognition||window.webkitSpeechRecognition)();
+recognition.lang="en-US";
+recognition.start();
+isListening=true;
+
+voiceBtn.classList.add("voice-active");
+voiceBtn.innerText="⏹";
+
+recognition.onresult=(e)=>{
+let t="";
+for(let i=0;i<e.results.length;i++){
+t+=e.results[i][0].transcript;
+}
+msg.value=t;
+};
+
+}else{
+recognition.stop();
+isListening=false;
+voiceBtn.classList.remove("voice-active");
+voiceBtn.innerText="🎤";
+}
 };
 
 /* AUTO REFRESH */
