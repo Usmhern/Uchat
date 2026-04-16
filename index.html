@@ -6,10 +6,7 @@
 <title>UChat</title>
 
 <style>
-:root{
---primary:#036;
---received:#e4e6eb;
-}
+:root{--primary:#036;--received:#e4e6eb;}
 
 *{margin:0;padding:0;box-sizing:border-box;}
 
@@ -30,7 +27,7 @@ background:black;
 display:flex;
 }
 
-/* SIDEBAR */
+/* USERS */
 .sidebar{
 width:120px;
 background:#0f172a;
@@ -40,7 +37,6 @@ overflow-y:auto;
 font-size:12px;
 }
 
-/* USER ITEM */
 .user{
 padding:8px;
 border-bottom:1px solid #222;
@@ -54,11 +50,7 @@ text-overflow:ellipsis;
 }
 
 /* CHAT */
-.chat-main{
-flex:1;
-display:flex;
-flex-direction:column;
-}
+.chat-main{flex:1;display:flex;flex-direction:column;}
 
 header{
 background:var(--primary);
@@ -69,25 +61,20 @@ justify-content:space-between;
 align-items:center;
 }
 
-/* DOT */
 .status-dot{
-width:10px;
-height:10px;
-border-radius:50%;
-background:red;
-display:inline-block;
+width:10px;height:10px;border-radius:50%;
+background:red;display:inline-block;
 }
+
 .status-dot.online{
 background:#25D366;
 animation:blink 1s infinite;
 box-shadow:0 0 8px #25D366;
 }
 
-@keyframes blink{
-50%{opacity:0.3;}
-}
+@keyframes blink{50%{opacity:0.3;}}
 
-/* CHAT BOX */
+/* CHAT */
 .chat-box{
 flex:1;
 overflow-y:auto;
@@ -135,24 +122,27 @@ outline:none;
 }
 
 button{
-width:40px;
-height:40px;
-border-radius:50%;
-border:none;
-background:#036;
-color:#fff;
+width:40px;height:40px;border-radius:50%;
+border:none;background:#036;color:#fff;
 }
 
-/* VOICE */
-.voice-btn{
-background:#ddd;
-color:#000;
+/* USERS HEADER */
+.user-header{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:6px;
 }
 
-.voice-recording{
-background:red !important;
-color:#fff !important;
-animation:blink 0.8s infinite;
+.toggle-btn{
+width:28px;height:28px;border-radius:50%;
+background:#036;color:#fff;
+display:flex;
+align-items:center;
+justify-content:center;
+cursor:pointer;
+font-size:18px;
+user-select:none;
 }
 
 /* POPUP */
@@ -166,29 +156,6 @@ color:#fff;
 padding:10px 15px;
 border-radius:10px;
 font-size:13px;
-z-index:9999;
-}
-
-/* USERS HEADER BUTTON */
-.user-header{
-display:flex;
-justify-content:space-between;
-align-items:center;
-margin-bottom:8px;
-}
-
-.toggle-btn{
-width:28px;
-height:28px;
-border-radius:50%;
-background:#036;
-color:#fff;
-display:flex;
-align-items:center;
-justify-content:center;
-font-size:18px;
-cursor:pointer;
-user-select:none;
 }
 
 /* TYPING */
@@ -229,7 +196,6 @@ padding:5px 10px;
 
 <form id="form" class="input-area">
 <input id="msg" placeholder="Message..." required>
-<button type="button" class="voice-btn">🎤</button>
 <button type="submit">➤</button>
 </form>
 
@@ -242,9 +208,8 @@ const URL="https://script.google.com/macros/s/AKfycbyYCUdPsi0Ck5Rb90bM0SDfzwpziP
 let user="";
 let active=null;
 let allMessages=[];
+let showAll=false;
 let lastCount=0;
-
-let showAllUsers=false;
 
 /* LOGIN */
 window.onload=()=>{
@@ -254,21 +219,20 @@ if(!user) user="User"+Math.floor(Math.random()*9999);
 
 /* TOGGLE */
 function toggleUsers(){
-showAllUsers=!showAllUsers;
-document.getElementById("toggleBtn").innerText=showAllUsers?"–":"+";
+showAll=!showAll;
+document.getElementById("toggleBtn").innerText=showAll?"–":"+";
 }
 
-/* LOAD */
+/* MAIN FETCH */
 async function load(){
 try{
-const res=await fetch(URL);
+const res=await fetch(URL+"?t="+Date.now()); // 🔥 force fresh data
 const data=await res.json();
 
 allMessages=data.messages||[];
 
 renderUsers(data.users||[]);
 renderMessages();
-renderTyping(data.typing||[]);
 handleNotifications(data.messages||[]);
 
 document.getElementById("globalStatus").classList.add("online");
@@ -278,12 +242,12 @@ document.getElementById("globalStatus").classList.remove("online");
 }
 }
 
-/* USERS */
+/* USERS FIXED LOGIC */
 function renderUsers(users){
 
 const now=Date.now();
 
-users=users.map(u=>{
+users=(users||[]).map(u=>{
 if(Array.isArray(u)) return u;
 return [u,""];
 });
@@ -297,34 +261,32 @@ const lastSeen=u[1];
 
 let online=false;
 
+/* FIXED TIME CHECK */
 if(lastSeen){
 const t=new Date(lastSeen).getTime();
 if(!isNaN(t)){
-online=(now-t)<10000;
+online=(now - t) < 8000; // 🔥 strict live check
 }
 }
 
 /* FILTER */
-if(!showAllUsers && !online) return;
+if(!showAll && !online) return;
 
 html+=`
 <div class="user" onclick="openChat('${name.replace(/'/g,"")}')">
 <span>• ${name}</span>
 <span style="
-width:10px;
-height:10px;
-border-radius:50%;
-display:inline-block;
+width:10px;height:10px;border-radius:50%;
 background:${online?'#25D366':'red'};
 ${online?'animation:blink 1s infinite;':''}
 "></span>
 </div>`;
 });
 
-document.getElementById("users").innerHTML=html;
+document.getElementById("users").innerHTML=html || "<div style='padding:10px'>No users</div>";
 }
 
-/* CHAT OPEN */
+/* OPEN CHAT */
 function openChat(u){
 active=u;
 document.getElementById("chatTitle").innerText=u;
@@ -384,37 +346,6 @@ time:new Date().toISOString()
 msg.value="";
 };
 
-/* TYPING */
-let typingTimeout;
-
-msg.addEventListener("input",()=>{
-
-fetch(URL,{
-method:"POST",
-mode:"no-cors",
-body:JSON.stringify({
-type:"typing",
-name:user
-})
-});
-
-clearTimeout(typingTimeout);
-
-typingTimeout=setTimeout(()=>{
-
-fetch(URL,{
-method:"POST",
-mode:"no-cors",
-body:JSON.stringify({
-type:"typing-stop",
-name:user
-})
-});
-
-},1000);
-
-});
-
 /* NOTIFICATIONS */
 function handleNotifications(messages){
 
@@ -423,7 +354,7 @@ if(!Array.isArray(messages))return;
 if(messages.length>lastCount){
 const last=messages[messages.length-1];
 
-if(last&&last[1]===user){
+if(last && last[1]===user){
 showPopup(last[0],last[2]);
 }
 
@@ -436,67 +367,11 @@ const div=document.createElement("div");
 div.className="popup";
 div.innerHTML=`📩 ${sender}: ${msg}`;
 document.body.appendChild(div);
-
 setTimeout(()=>div.remove(),2500);
-
-try{
-new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play();
-}catch(e){}
 }
 
-/* VOICE */
-let recognition;
-let recording=false;
-
-document.querySelector(".voice-btn").onclick=()=>{
-
-if(!('webkitSpeechRecognition'in window||'SpeechRecognition'in window)){
-alert("Not supported");
-return;
-}
-
-const btn=document.querySelector(".voice-btn");
-
-if(!recording){
-
-btn.classList.add("voice-recording");
-btn.innerHTML="⏹️";
-
-recognition=new (window.SpeechRecognition||window.webkitSpeechRecognition)();
-recognition.lang="en-US";
-recognition.start();
-
-recording=true;
-
-recognition.onresult=(e)=>{
-msg.value=e.results[0][0].transcript;
-};
-
-}else{
-
-btn.classList.remove("voice-recording");
-btn.innerHTML="🎤";
-
-recognition.stop();
-recording=false;
-}
-};
-
-/* PRESENCE */
-setInterval(()=>{
-fetch(URL,{
-method:"POST",
-mode:"no-cors",
-body:JSON.stringify({
-type:"presence",
-name:user,
-time:new Date().toISOString()
-})
-});
-},2000);
-
-/* LOOP */
-setInterval(load,800);
+/* LOOP (FIXED FAST + STABLE) */
+setInterval(load,1200); // stable refresh
 load();
 </script>
 
