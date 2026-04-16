@@ -191,8 +191,16 @@ let lastCount = 0;
 
 /* TIME */
 function getTime(){
-let d = new Date();
-return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    const d = new Date();
+    let h = d.getHours();
+    let m = d.getMinutes();
+
+    h = h % 12 || 12;
+    m = m < 10 ? "0" + m : m;
+
+    const ampm = d.getHours() >= 12 ? "PM" : "AM";
+
+    return `${h}:${m} ${ampm}`;
 }
 
 /* FETCH */
@@ -251,41 +259,58 @@ msg.value="";
 
 /* VOICE (PRESS & HOLD FIX) */
 let recognition;
+let recognition;
+let isListening = false;
+
 const voiceBtn = document.getElementById("voiceBtn");
 
-function startVoice(){
-if(!('webkitSpeechRecognition'in window || 'SpeechRecognition'in window)){
-alert("Voice not supported");
-return;
-}
+voiceBtn.onclick = () => {
 
-recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-recognition.lang = "en-US";
-recognition.continuous = true;
+    if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+        alert("Voice not supported on this device");
+        return;
+    }
 
-voiceBtn.classList.add("voice-active");
+    if (!isListening) {
+        recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
 
-recognition.start();
+        recognition.lang = "en-US";
+        recognition.continuous = true;
+        recognition.interimResults = true;
 
-recognition.onresult = (e)=>{
-let text = "";
-for(let i=0;i<e.results.length;i++){
-text += e.results[i][0].transcript;
-}
-msg.value = text;
+        recognition.start();
+        isListening = true;
+
+        voiceBtn.classList.add("voice-active");
+        voiceBtn.innerText = "⏹";
+
+        recognition.onresult = (e) => {
+            let transcript = "";
+            for (let i = 0; i < e.results.length; i++) {
+                transcript += e.results[i][0].transcript;
+            }
+            msg.value = transcript;
+        };
+
+        recognition.onend = () => {
+            if (isListening) recognition.start(); // auto-restart
+        };
+
+        recognition.onerror = () => {
+            stopVoice();
+        };
+
+    } else {
+        stopVoice();
+    }
 };
 
-recognition.onend = ()=>{
-voiceBtn.classList.remove("voice-active");
-};
-}
-
-function stopVoice(){
-if(recognition){
-recognition.stop();
-voiceBtn.classList.remove("voice-active");
-}
-}
+function stopVoice() {
+    if (recognition) recognition.stop();
+    isListening = false;
+    voiceBtn.classList.remove("voice-active");
+    voiceBtn.innerText = "🎤";
+}}
 
 /* PRESS & HOLD EVENTS */
 voiceBtn.addEventListener("mousedown", startVoice);
