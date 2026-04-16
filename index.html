@@ -182,18 +182,35 @@ const statusText = document.getElementById("status-text");
 
 let lastCount = 0;
 
-/* TIME */
+/* SIMPLE TIME (FOR SENDING) */
 function getTime(){
     const d = new Date();
     let h = d.getHours();
     let m = d.getMinutes();
 
+    const ampm = h >= 12 ? "am" : "pm";
+
     h = h % 12 || 12;
     m = m < 10 ? "0" + m : m;
 
-    const ampm = d.getHours() >= 12 ? "PM" : "AM";
+    return `${h}:${m}${ampm}`;
+}
 
-    return `${h}:${m} ${ampm}`;
+/* FORMAT TIME (FOR DISPLAYING FROM GOOGLE SHEET) */
+function formatTime(raw){
+    if(!raw) return "";
+
+    const d = new Date(raw);
+
+    let h = d.getHours();
+    let m = d.getMinutes();
+
+    const ampm = h >= 12 ? "pm" : "am";
+
+    h = h % 12 || 12;
+    m = m < 10 ? "0" + m : m;
+
+    return `${h}:${m}${ampm}`;
 }
 
 /* FETCH */
@@ -228,7 +245,7 @@ return `
 <div class="msg ${mine?'sent':'received'}">
 <div class="msg-info">${row[0]}</div>
 ${row[1]}
-<div class="time">${row[2] || ''}</div>
+<div class="time">${formatTime(row[2])}</div>
 </div>`;
 }).join('');
 }
