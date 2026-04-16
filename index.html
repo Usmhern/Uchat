@@ -88,9 +88,9 @@ background:#fafafa;
 .msg{
 max-width:75%;
 padding:10px;
-border-radius:20px 0px 20px 0px;
+border-radius:20px 0px 10px 0px;
 font-size:14px;
-box-shadow:2px 0px 5px black;
+box-shadow:2px 0px 4px black;
 }
 
 .sent{align-self:flex-end;background:#00a884;color:#fff;}
@@ -162,8 +162,8 @@ border:none;
 <div class="chat-container">
 
 <div class="sidebar">
-<h4 style="color:#0f0">Online</h4>
-<div id="users">• </div>
+<h4 style="color:#0bf">USERS</h4>
+<div id="users"> </div>
 </div>
 
 <div class="chat-main">
@@ -284,9 +284,11 @@ ${mine ? (read ? '✓✓' : '✓') : ''}
 }
 
 /* USERS */
-function renderUsers(users){
-usersBox.innerHTML = users.map(u=>`<div class="user">${u}</div>`).join('');
+function renderUsers(users) {
+  // We add the • character right before the user variable ${u}
+  usersBox.innerHTML = users.map(u => `<div class="user">• ${u}</div>`).join('');
 }
+
 
 /* TYPING */
 function renderTyping(list){
