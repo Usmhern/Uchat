@@ -47,9 +47,6 @@ cursor:pointer;
 display:flex;
 justify-content:space-between;
 align-items:center;
-white-space:nowrap;
-overflow:hidden;
-text-overflow:ellipsis;
 }
 
 /* CHAT */
@@ -68,7 +65,7 @@ justify-content:space-between;
 align-items:center;
 }
 
-/* ONLINE DOT */
+/* HEADER DOT */
 .status-dot{
 width:10px;
 height:10px;
@@ -78,7 +75,12 @@ display:inline-block;
 }
 .status-dot.online{
 background:#25D366;
-box-shadow:0 0 6px #25D366;
+animation:blink 1s infinite;
+box-shadow:0 0 8px #25D366;
+}
+
+@keyframes blink{
+50%{opacity:0.3;}
 }
 
 /* CHAT BOX */
@@ -149,10 +151,6 @@ color:#fff !important;
 animation:blink 0.8s infinite;
 }
 
-@keyframes blink{
-50%{opacity:0.4;}
-}
-
 /* POPUP */
 .popup{
 position:fixed;
@@ -199,7 +197,6 @@ padding:5px 10px;
 
 <form id="form" class="input-area">
 <input id="msg" placeholder="Message..." required>
-
 <button type="button" class="voice-btn">🎤</button>
 <button type="submit">➤</button>
 </form>
@@ -208,33 +205,33 @@ padding:5px 10px;
 </div>
 
 <script>
-const URL = "https://script.google.com/macros/s/AKfycbyYCUdPsi0Ck5Rb90bM0SDfzwpziPZ_whuptr2WxJuHAKfXmPZ2QGVCP32Vs9LXe5HCFw/exec";
+const URL="https://script.google.com/macros/s/AKfycbyYCUdPsi0Ck5Rb90bM0SDfzwpziPZ_whuptr2WxJuHAKfXmPZ2QGVCP32Vs9LXe5HCFw/exec";
 
-let user = "";
-let active = null;
-let allMessages = [];
-let lastCount = 0;
+let user="";
+let active=null;
+let allMessages=[];
+let lastCount=0;
 
 /* LOGIN */
-window.onload = () => {
-user = prompt("Enter username:");
-if(!user) user = "User" + Math.floor(Math.random()*9999);
+window.onload=()=>{
+user=prompt("Enter username:");
+if(!user) user="User"+Math.floor(Math.random()*9999);
 };
 
 /* LOAD */
 async function load(){
 try{
-const res = await fetch(URL);
-const data = await res.json();
+const res=await fetch(URL);
+const data=await res.json();
 
-allMessages = data.messages || [];
+allMessages=data.messages||[];
 
-renderUsers(data.users || []);
+renderUsers(data.users||[]);
 renderMessages();
-renderTyping(data.typing || []);
-handleNotifications(data.messages || []);
+renderTyping(data.typing||[]);
+handleNotifications(data.messages||[]);
 
-/* ONLINE STATUS */
+/* HEADER ONLINE */
 document.getElementById("globalStatus").classList.add("online");
 
 }catch(e){
@@ -242,85 +239,89 @@ document.getElementById("globalStatus").classList.remove("online");
 }
 }
 
-/* USERS (ONLINE/OFFLINE DOT FIXED) */
+/* USERS */
 function renderUsers(users){
 
-const now = Date.now();
+const now=Date.now();
 
-users = users.map(u=>{
+users=users.map(u=>{
 if(Array.isArray(u)) return u;
 return [u,""];
 });
 
-document.getElementById("users").innerHTML =
+document.getElementById("users").innerHTML=
 users.map(u=>{
 
-const name = String(u[0] || "");
-const lastSeen = u[1];
+const name=String(u[0]||"");
+const lastSeen=u[1];
 
-let online = false;
+let online=false;
 
 if(lastSeen){
-const t = new Date(lastSeen).getTime();
+const t=new Date(lastSeen).getTime();
 if(!isNaN(t)){
-online = (now - t) < 15000;
+online=(now-t)<10000;
 }
 }
-
-const color = online ? "#25D366" : "red";
 
 return `
 <div class="user" onclick="openChat('${name.replace(/'/g,"")}')">
 <span>• ${name}</span>
-<span style="width:10px;height:10px;border-radius:50%;background:${color};display:inline-block;"></span>
+<span style="
+width:10px;
+height:10px;
+border-radius:50%;
+background:${online?'#25D366':'red'};
+display:inline-block;
+"></span>
 </div>`;
 }).join('');
 }
 
 /* OPEN CHAT */
 function openChat(u){
-active = u;
-document.getElementById("chatTitle").innerText = u;
+active=u;
+document.getElementById("chatTitle").innerText=u;
 }
 
 /* MESSAGES */
 function renderMessages(){
 
-const box = document.getElementById("chatBox");
+const box=document.getElementById("chatBox");
 
 if(!active){
-box.innerHTML = "<center style='padding:20px'>Select user</center>";
+box.innerHTML="<center style='padding:20px'>Select user</center>";
 return;
 }
 
-const msgs = allMessages.filter(m =>
-(m[0]==user && m[1]==active) ||
-(m[0]==active && m[1]==user)
+const msgs=allMessages.filter(m=>
+(m[0]==user&&m[1]==active)||
+(m[0]==active&&m[1]==user)
 );
 
-box.innerHTML = msgs.map(m=>{
+box.innerHTML=msgs.map(m=>{
 
-const mine = m[0] === user;
-const read = m[4];
+const mine=m[0]===user;
+const read=m[4];
 
 return `
 <div class="msg ${mine?'sent':'received'}">
 <div>${m[2]}</div>
 <div class="time">
 ${new Date(m[3]).toLocaleTimeString()}
-${mine ? (read ? "✓✓" : "✓") : ""}
+${mine?(read?'✓✓':'✓'):''}
 </div>
 </div>`;
 }).join('');
 
-box.scrollTop = box.scrollHeight;
+box.scrollTop=box.scrollHeight;
 }
 
 /* SEND */
-document.getElementById("form").onsubmit = async(e)=>{
+document.getElementById("form").onsubmit=async(e)=>{
 e.preventDefault();
 
-if(!active) return alert("Select user");
+if(!active)return alert("Select user");
 
 await fetch(URL,{
 method:"POST",
@@ -334,7 +335,7 @@ time:new Date().toISOString()
 })
 });
 
-msg.value = "";
+msg.value="";
 };
 
 /* TYPING */
@@ -353,7 +354,7 @@ name:user
 
 clearTimeout(typingTimeout);
 
-typingTimeout = setTimeout(()=>{
+typingTimeout=setTimeout(()=>{
 
 fetch(URL,{
 method:"POST",
@@ -364,48 +365,33 @@ name:user
 })
 });
 
-},1200);
+},1000);
 
 });
-
-/* TYPING DISPLAY */
-function renderTyping(list){
-
-const box = document.getElementById("typingBox");
-
-if(!Array.isArray(list)) return;
-
-const typing = list.filter(x=>x[1]===true).map(x=>x[0]);
-const filtered = typing.filter(x=>x!==user);
-
-box.innerText = filtered.length ? `${filtered.join(", ")} is typing...` : "";
-}
 
 /* NOTIFICATIONS */
 function handleNotifications(messages){
 
-if(!Array.isArray(messages)) return;
+if(!Array.isArray(messages))return;
 
-if(messages.length > lastCount){
-const last = messages[messages.length - 1];
+if(messages.length>lastCount){
+const last=messages[messages.length-1];
 
-if(last && last[1] === user){
-showPopup(last[0], last[2]);
+if(last&&last[1]===user){
+showPopup(last[0],last[2]);
 }
 
-lastCount = messages.length;
+lastCount=messages.length;
 }
 }
 
-/* POPUP */
 function showPopup(sender,msg){
-
-const div = document.createElement("div");
-div.className = "popup";
-div.innerHTML = `📩 ${sender}: ${msg}`;
+const div=document.createElement("div");
+div.className="popup";
+div.innerHTML=`📩 ${sender}: ${msg}`;
 document.body.appendChild(div);
 
-setTimeout(()=>div.remove(),3000);
+setTimeout(()=>div.remove(),2500);
 
 try{
 new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play();
@@ -414,43 +400,43 @@ new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play();
 
 /* VOICE */
 let recognition;
-let recording = false;
+let recording=false;
 
-document.querySelector(".voice-btn").onclick = () => {
+document.querySelector(".voice-btn").onclick=()=>{
 
-if(!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)){
-alert("Voice not supported");
+if(!('webkitSpeechRecognition'in window||'SpeechRecognition'in window)){
+alert("Not supported");
 return;
 }
 
-const btn = document.querySelector(".voice-btn");
+const btn=document.querySelector(".voice-btn");
 
 if(!recording){
 
 btn.classList.add("voice-recording");
-btn.innerHTML = "⏹️";
+btn.innerHTML="⏹️";
 
-recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-recognition.lang = "en-US";
+recognition=new (window.SpeechRecognition||window.webkitSpeechRecognition)();
+recognition.lang="en-US";
 recognition.start();
 
-recording = true;
+recording=true;
 
-recognition.onresult = (e)=>{
-msg.value = e.results[0][0].transcript;
+recognition.onresult=(e)=>{
+msg.value=e.results[0][0].transcript;
 };
 
 }else{
 
 btn.classList.remove("voice-recording");
-btn.innerHTML = "🎤";
+btn.innerHTML="🎤";
 
 recognition.stop();
-recording = false;
+recording=false;
 }
 };
 
-/* PRESENCE (IMPORTANT FOR ONLINE STATUS) */
+/* PRESENCE */
 setInterval(()=>{
 fetch(URL,{
 method:"POST",
@@ -461,10 +447,10 @@ name:user,
 time:new Date().toISOString()
 })
 });
-},3000);
+},2000);
 
-/* LOOP */
-setInterval(load,3000);
+/* FAST LOOP */
+setInterval(load,800);
 load();
 </script>
 
