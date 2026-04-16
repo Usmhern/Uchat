@@ -3,13 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>UChat Pro</title>
+<title>UChat</title>
 
 <style>
 :root {
     --primary:#0084ff;
     --bg:#f0f2f5;
-    --dark:#1c1e21;
+    --text:#1c1e21;
+    --received:#e4e6eb;
 }
 
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -26,31 +27,45 @@ body{
 /* Container */
 .chat-container{
     width:100%;
-    max-width:420px;
+    max-width:430px;
     height:95vh;
     background:#fff;
     border-radius:18px;
     display:flex;
     flex-direction:column;
     overflow:hidden;
-    box-shadow:0 20px 50px rgba(0,0,0,0.2);
+    box-shadow:0 20px 40px rgba(0,0,0,0.2);
 }
 
 /* Header */
 header{
-    padding:15px;
     background:var(--primary);
     color:#fff;
+    padding:15px;
     display:flex;
     justify-content:space-between;
     align-items:center;
 }
 
-#status-dot{
-    width:8px;height:8px;border-radius:50%;
-    background:red;margin-right:6px;
+header h2{
+    font-size:18px;
+    font-weight:600;
 }
-.online #status-dot{background:lime}
+
+#status-container{
+    display:flex;
+    align-items:center;
+    font-size:12px;
+}
+
+#status-dot{
+    width:8px;height:8px;
+    border-radius:50%;
+    background:red;
+    margin-right:6px;
+}
+
+.online #status-dot{background:#42b72a}
 
 /* Chat */
 .chat-box{
@@ -67,7 +82,7 @@ header{
 .msg{
     max-width:75%;
     padding:10px 14px;
-    border-radius:15px;
+    border-radius:16px;
     font-size:14px;
     animation:fade 0.2s ease;
 }
@@ -76,16 +91,19 @@ header{
     align-self:flex-end;
     background:var(--primary);
     color:#fff;
+    border-bottom-right-radius:4px;
 }
 
 .received{
     align-self:flex-start;
-    background:#e4e6eb;
+    background:var(--received);
+    border-bottom-left-radius:4px;
 }
 
 .msg-info{
     font-size:10px;
     opacity:0.6;
+    margin-bottom:2px;
 }
 
 /* Input */
@@ -103,9 +121,14 @@ header{
 
 input{
     flex:1;
-    padding:10px;
+    padding:11px;
     border-radius:10px;
     border:1px solid #ddd;
+    outline:none;
+}
+
+input:focus{
+    border-color:var(--primary);
 }
 
 /* Buttons */
@@ -113,33 +136,16 @@ button{
     border:none;
     background:var(--primary);
     color:#fff;
-    padding:10px;
+    padding:10px 14px;
     border-radius:10px;
     cursor:pointer;
 }
 
-/* Emoji Picker */
-#emoji-picker{
-    position:absolute;
-    bottom:80px;
-    right:10px;
-    width:250px;
-    height:200px;
-    overflow:auto;
-    background:#fff;
-    border-radius:10px;
-    display:none;
-    padding:10px;
-    box-shadow:0 10px 20px rgba(0,0,0,0.2);
+button:active{
+    transform:scale(0.96);
 }
 
-.emoji{
-    cursor:pointer;
-    font-size:20px;
-    padding:5px;
-}
-
-/* Responsive */
+/* Mobile */
 @media(max-width:500px){
     .chat-container{
         height:100vh;
@@ -154,30 +160,27 @@ button{
 </style>
 </head>
 
-<body>
+<body class="connecting">
 
 <div class="chat-container">
+
 <header>
-    <h3>UChat Pro</h3>
-    <div id="status">
-        <span id="status-dot"></span>
+    <h2>UChat</h2>
+    <div id="status-container">
+        <div id="status-dot"></div>
         <span id="status-text">Connecting...</span>
     </div>
 </header>
 
 <div id="chat-box" class="chat-box"></div>
 
-<div id="emoji-picker"></div>
-
 <form id="form" class="input-area">
-<input id="username" placeholder="Username" required>
+<input id="username" placeholder="Enter Username" required maxlength="15">
 
 <div class="input-row">
-    <button type="button" onclick="toggleEmoji()">😊</button>
-    <input id="msg" placeholder="Message..." required>
-    <button type="button" onclick="startVoice()">🎤</button>
-    <button type="button" onclick="aiReply()">🤖</button>
-    <button type="submit">➤</button>
+    <input id="msg" placeholder="Type message..." required>
+    <button type="button" id="voiceBtn">🎤</button>
+    <button type="submit">Send</button>
 </div>
 </form>
 
@@ -186,96 +189,109 @@ button{
 <script>
 const URL = "https://script.google.com/macros/s/AKfycbwiUJSNMlDtSXF8LscIqMTTQBNVWhoNQ2Fzbfs2LX0EARD2inBRS1fsSbwiLXEozVBhzA/exec";
 
-const chat = document.getElementById("chat-box");
+const chatBox = document.getElementById("chat-box");
+const statusText = document.getElementById("status-text");
+
 let lastCount = 0;
+let isFirstLoad = true;
 
-/* FETCH */
-async function fetchMsg(){
+/* FETCH MESSAGES */
+async function fetchMessages(){
     try{
-        let res = await fetch(URL);
-        let data = await res.json();
+        const res = await fetch(URL);
+        const data = await res.json();
 
-        if(data.length !== lastCount){
+        if(data.length > lastCount){
             render(data);
             lastCount = data.length;
-            chat.scrollTop = chat.scrollHeight;
+            chatBox.scrollTop = chatBox.scrollHeight;
         }
 
         document.body.classList.add("online");
-        document.getElementById("status-text").innerText="Live";
-    }catch{
-        document.getElementById("status-text").innerText="Offline";
+        statusText.innerText = "Live";
+        isFirstLoad = false;
+
+    }catch(err){
+        document.body.classList.remove("online");
+        statusText.innerText = "Reconnecting...";
     }
 }
 
 /* RENDER */
 function render(data){
-    let me = username.value;
+    const me = username.value;
 
-    chat.innerHTML = data.map(r=>{
-        let mine = r[0]===me;
+    chatBox.innerHTML = data.map(row=>{
+        const mine = row[0] === me && me !== "";
         return `
         <div class="msg ${mine?'sent':'received'}">
-            <div class="msg-info">${r[0]}</div>
-            ${r[1]}
+            <div class="msg-info">${row[0]}</div>
+            ${row[1]}
         </div>`;
     }).join('');
 }
 
 /* SEND */
-form.onsubmit=async(e)=>{
+form.onsubmit = async (e)=>{
     e.preventDefault();
 
-    await fetch(URL,{
-        method:"POST",
-        mode:"no-cors",
-        body:JSON.stringify({
-            name:username.value,
-            message:msg.value
-        })
-    });
+    const name = username.value;
+    const message = msg.value;
 
-    msg.value="";
-};
+    if(!name || !message) return;
 
-/* EMOJI */
-const emojis = "😀😁😂🤣😃😄😅😆😉😊😍😘😎😭😡👍🙏🔥🎉❤️".split("");
+    username.readOnly = true;
+    username.style.opacity = "0.6";
 
-const picker = document.getElementById("emoji-picker");
-picker.innerHTML = emojis.map(e=>`<span class="emoji">${e}</span>`).join("");
+    msg.value = "";
 
-picker.onclick = e=>{
-    if(e.target.classList.contains("emoji")){
-        msg.value += e.target.innerText;
+    try{
+        await fetch(URL,{
+            method:"POST",
+            mode:"no-cors",
+            body:JSON.stringify({name,message})
+        });
+
+        setTimeout(fetchMessages,200);
+    }catch{
+        alert("Message failed.");
     }
 };
 
-function toggleEmoji(){
-    picker.style.display = picker.style.display==="block"?"none":"block";
-}
+/* VOICE (Improved) */
+let recognition;
+const voiceBtn = document.getElementById("voiceBtn");
 
-/* VOICE */
-function startVoice(){
-    const rec = new(window.SpeechRecognition||window.webkitSpeechRecognition)();
-    rec.start();
+voiceBtn.onclick = ()=>{
+    if(!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)){
+        alert("Voice not supported on this device");
+        return;
+    }
 
-    rec.onresult = e=>{
+    recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+
+    voiceBtn.innerText = "🎙️...";
+
+    recognition.start();
+
+    recognition.onresult = e=>{
         msg.value += e.results[0][0].transcript;
     };
-}
 
-/* AI REPLY (Simple) */
-function aiReply(){
-    let text = msg.value.toLowerCase();
+    recognition.onend = ()=>{
+        voiceBtn.innerText = "🎤";
+    };
 
-    if(text.includes("hi")) msg.value="Hello 👋";
-    else if(text.includes("how are you")) msg.value="I'm fine 😊";
-    else msg.value="Nice 👍";
-}
+    recognition.onerror = ()=>{
+        voiceBtn.innerText = "🎤";
+    };
+};
 
-/* AUTO REFRESH 1s */
-setInterval(fetchMsg,1000);
-fetchMsg();
+/* AUTO REFRESH */
+setInterval(fetchMessages,1000);
+fetchMessages();
 </script>
 
 </body>
