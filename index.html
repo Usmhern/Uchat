@@ -9,6 +9,7 @@
 :root{
 --primary:#036;
 --received:#e4e6eb;
+--read:#00c853;
 }
 
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -43,6 +44,13 @@ font-size:12px;
 padding:8px;
 border-bottom:1px solid #222;
 cursor:pointer;
+display:flex;
+justify-content:space-between;
+align-items:center;
+}
+
+.online-dot{
+font-size:10px;
 }
 
 .chat-main{
@@ -60,15 +68,8 @@ justify-content:space-between;
 align-items:center;
 }
 
-.status-online{
-color:#0f0;
-font-size:12px;
-}
-
-.status-offline{
-color:red;
-font-size:12px;
-}
+.status-online{color:#0f0;font-size:12px;}
+.status-offline{color:red;font-size:12px;}
 
 .chat-box{
 flex:1;
@@ -83,7 +84,7 @@ background:#fafafa;
 .msg{
 max-width:75%;
 padding:10px;
-border-radius:12px;
+border-radius:15px 0 15px 0;
 font-size:14px;
 }
 
@@ -92,7 +93,7 @@ font-size:14px;
 
 .time{
 font-size:10px;
-opacity:0.6;
+opacity:0.7;
 margin-top:4px;
 text-align:right;
 }
@@ -118,6 +119,20 @@ background:#036;
 color:#fff;
 border-radius:50%;
 }
+
+/* notification */
+.popup{
+position:fixed;
+bottom:20px;
+left:50%;
+transform:translateX(-50%);
+background:#036;
+color:#fff;
+padding:10px 15px;
+border-radius:10px;
+z-index:9999;
+font-size:13px;
+}
 </style>
 </head>
 
@@ -125,11 +140,13 @@ border-radius:50%;
 
 <div class="chat-container">
 
+<!-- USERS -->
 <div class="sidebar">
 <h4 style="color:#0bf">USERS</h4>
 <div id="users"></div>
 </div>
 
+<!-- CHAT -->
 <div class="chat-main">
 
 <header>
@@ -152,13 +169,12 @@ const URL = "https://script.google.com/macros/s/AKfycbyYCUdPsi0Ck5Rb90bM0SDfzwpz
 
 let user = "";
 let active = null;
-let allMessages = [];
 let lastCount = 0;
 
 /* LOGIN */
 window.onload = ()=>{
 user = prompt("Enter username:");
-if(!user) user = "User"+Math.floor(Math.random()*1000);
+if(!user) user = "User"+Math.floor(Math.random()*9999);
 };
 
 /* FETCH */
@@ -167,14 +183,11 @@ try{
 const res = await fetch(URL);
 const data = await res.json();
 
-allMessages = data.messages || [];
-
 renderUsers(data.users || []);
-renderMessages();
+renderMessages(data.messages || []);
+handleNotifications(data.messages || []);
 
-handleNotifications(data.messages);
-
-document.getElementById("status").innerText="Online";
+document.getElementById("status").innerText="Live";
 document.getElementById("status").className="status-online";
 
 }catch(e){
@@ -183,42 +196,63 @@ document.getElementById("status").className="status-offline";
 }
 }
 
-/* USERS */
+/* USERS + ONLINE STATUS */
 function renderUsers(users){
-users = users.filter(u=>u!==user);
+
+const now = Date.now();
 
 document.getElementById("users").innerHTML =
-users.map(u=>`
-<div class="user" onclick="openChat('${u}')">${u}</div>
-`).join('');
+users.map(u=>{
+
+const name = u[0];
+const lastSeen = u[1];
+
+let online = false;
+if(lastSeen){
+online = (now - new Date(lastSeen).getTime()) < 10000;
 }
 
+return `
+<div class="user" onclick="openChat('${name}')">
+• ${name}
+<span class="online-dot" style="color:${online?'#0f0':'gray'}">●</span>
+</div>`;
+}).join('');
+}
+
+/* OPEN CHAT */
 function openChat(u){
 active = u;
 document.getElementById("chatTitle").innerText = u;
-renderMessages();
 }
 
 /* MESSAGES */
-function renderMessages(){
+function renderMessages(messages){
+
 if(!active){
-chatBox.innerHTML = "<center>Select user</center>";
+document.getElementById("chatBox").innerHTML = "<center style='padding:20px'>Select user</center>";
 return;
 }
 
 const chatBox = document.getElementById("chatBox");
 
-const msgs = allMessages.filter(m=>
+const msgs = messages.filter(m=>
 (m[0]==user && m[1]==active) ||
 (m[0]==active && m[1]==user)
 );
 
 chatBox.innerHTML = msgs.map(m=>{
+
 const mine = m[0]===user;
+const read = m[4];
+
 return `
 <div class="msg ${mine?'sent':'received'}">
 <div>${m[2]}</div>
-<div class="time">${new Date(m[3]).toLocaleTimeString()}</div>
+<div class="time">
+${new Date(m[3]).toLocaleTimeString()}
+${mine ? (read ? " ✓✓" : " ✓") : ""}
+</div>
 </div>`;
 }).join('');
 
@@ -246,9 +280,8 @@ time:new Date().toISOString()
 msg.value="";
 };
 
-/* NOTIFICATION */
+/* NOTIFICATIONS */
 function handleNotifications(messages){
-if(!messages) return;
 
 if(messages.length > lastCount){
 const last = messages[messages.length-1];
@@ -262,32 +295,34 @@ lastCount = messages.length;
 }
 
 function showPopup(sender,msg){
+
 const div = document.createElement("div");
-div.style.position="fixed";
-div.style.bottom="20px";
-div.style.left="50%";
-div.style.transform="translateX(-50%)";
-div.style.background="#036";
-div.style.color="#fff";
-div.style.padding="10px";
-div.style.borderRadius="10px";
-div.innerText=`${sender}: ${msg}`;
+div.className="popup";
+div.innerHTML=`📩 ${sender}: ${msg}`;
 document.body.appendChild(div);
 
 setTimeout(()=>div.remove(),3000);
+
+try{
+const audio = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
+audio.play();
+}catch(e){}
 }
 
-/* ONLINE STATUS PING */
+/* PRESENCE */
 setInterval(()=>{
 fetch(URL,{
 method:"POST",
 mode:"no-cors",
-body:JSON.stringify({type:"presence",name:user})
+body:JSON.stringify({
+type:"presence",
+name:user
+})
 });
 },5000);
 
 /* LOOP */
-setInterval(load,2000);
+setInterval(load,3000);
 load();
 </script>
 
